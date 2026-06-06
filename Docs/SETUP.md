@@ -87,7 +87,7 @@ pip install -r requirements.txt    # or: uv pip install -r requirements.txt
 psql "$DATABASE_URL" -f migrations/0001_init.sql
 
 # 3. Run the FastAPI backend
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:api --reload --port 8000
 
 # 4. Run the MCP server (separate process)
 python -m mcp_server
@@ -95,6 +95,20 @@ python -m mcp_server
 # 5. Health check
 curl http://localhost:8000/health
 ```
+
+### 4.1 Easiest local Slack test: Socket Mode (no ngrok)
+
+If your Slack app has **Socket Mode** enabled and you have an app-level token
+(`SLACK_APP_TOKEN`, `xapp-…`, scope `connections:write`), skip the public URL
+entirely:
+
+```bash
+python -m app.socket_mode
+```
+
+This connects to Slack over a websocket and handles mentions, messages, and
+button clicks directly. Requires `SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN`. Use the
+HTTP path (§5) only when you specifically need public request URLs.
 
 ---
 
