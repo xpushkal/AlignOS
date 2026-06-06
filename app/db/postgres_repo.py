@@ -1,11 +1,12 @@
 """Neon PostgreSQL Repository implementation (psycopg v3).
 
 Mirrors InMemoryRepository semantics against the schema in
-migrations/0001_init.sql. The `psycopg` package is imported lazily so the app can
-run on the in-memory backend without it installed.
+migrations/0001_init.sql. The `psycopg` packages are imported lazily so the app
+can run on the in-memory backend without them installed.
 
-Neon is serverless Postgres; this opens a short-lived connection per operation
-(use the pooled connection string from the Neon dashboard for best results).
+Uses a connection pool so we don't pay the (~2s) TLS+handshake cost of a fresh
+Neon connection on every query. Connections are reused and liveness-checked
+before hand-out, so an idle connection closed by Neon is transparently replaced.
 """
 from __future__ import annotations
 
@@ -20,19 +21,28 @@ class PostgresRepository(Repository):
     backend = "neon-postgres"
 
     def __init__(self, dsn: str) -> None:
-        import psycopg  # lazy import
-        from psycopg.rows import dict_row
+        from psycopg.rows import dict_row  # lazy import
+        from psycopg_pool import ConnectionPool
 
-        self._psycopg = psycopg
-        self._dict_row = dict_row
+        from app.config import get_settings
+
         self.dsn = dsn
+        self._pool = ConnectionPool(
+            dsn,
+            min_size=1,
+            max_size=max(4, get_settings().db_pool_max_size),
+            open=True,
+            # Reset/ping a connection before handing it out so a stale one
+            # (closed by Neon while idle) is recycled instead of erroring.
+            check=ConnectionPool.check_connection,
+            kwargs={"row_factory": dict_row, "autocommit": True},
+        )
 
     @contextmanager
     def _cursor(self):
-        with self._psycopg.connect(self.dsn, row_factory=self._dict_row) as conn:
+        with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 yield cur
-            conn.commit()
 
     # --- decisions ---
     def save_decision(self, decision: Record) -> Record:

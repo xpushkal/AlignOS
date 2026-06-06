@@ -14,20 +14,49 @@ from typing import Any
 DECISION_CUES = [
     "let's finalize",
     "lets finalize",
+    "finalize",
+    "finalized",
     "we agreed",
+    "agreed on",
     "final decision",
     "okay, we'll use",
     "we'll use",
     "let's go with",
     "lets go with",
+    "going with",
+    "go with",
+    "settled on",
+    "stick with",
+    "sticking with",
     "deadline is fixed",
     "we are dropping",
+    "we're dropping",
     "final then",
     "for v1",
     "let's use",
     "lets use",
     "decided",
+    "decision is",
 ]
+
+
+def has_decision_cue(message: str) -> bool:
+    """Cheap gate: does the message look decision-like at all?
+
+    Used to skip the (expensive) LLM decision classifier on the ~majority of
+    messages that contain no decision language.
+    """
+    text = message.lower()
+    return any(cue in text for cue in DECISION_CUES)
+
+
+def has_conflict_signal(message: str, memory_items: list[dict]) -> bool:
+    """Cheap gate: is there a plausible contradiction worth an LLM review?
+
+    Reuses the rule-based conflict engine (opposing technology terms etc.) so we
+    only escalate to the LLM when there's an actual signal.
+    """
+    return bool(memory_items) and detect_conflict(message, memory_items)["is_conflict"]
 
 
 def detect_decision(message: str) -> dict[str, Any]:

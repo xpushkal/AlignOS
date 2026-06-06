@@ -17,11 +17,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app import flows
+from app import concurrency, flows
 from app.config import get_settings
 from app.db import get_repository
 from app.llm import get_llm_client
-from app.security import get_agent_limiter
+from app.store import get_store
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
@@ -51,8 +51,11 @@ async def health() -> dict:
         "status": "ok",
         "db_backend": get_repository().backend,
         "llm_mode": get_llm_client().mode,
+        "store_backend": get_store().backend,
         "slack_wired": _slack_handler is not None,
         "rts_enabled": settings.slack_rts_enabled,
+        "inflight": concurrency.inflight(),
+        "max_concurrency": settings.max_concurrency,
     }
 
 
@@ -87,7 +90,7 @@ async def agent_guard(
     if token and x_alignos_token != token:
         raise HTTPException(status_code=401, detail="unauthorized")
     client_ip = request.client.host if request.client else "unknown"
-    if not get_agent_limiter().check(client_ip):
+    if not await get_store().rate_allow(f"agent:{client_ip}"):
         raise HTTPException(status_code=429, detail="rate limit exceeded")
 
 

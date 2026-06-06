@@ -15,20 +15,23 @@ os.environ["SLACK_BOT_TOKEN"] = ""
 os.environ["SLACK_SIGNING_SECRET"] = ""
 
 # Clear any cached settings/singletons built during import.
+from app import concurrency  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db import reset_repository  # noqa: E402
 from app.llm import get_llm_client  # noqa: E402
-from app.security import reset_limiters  # noqa: E402
+from app.store import reset_store  # noqa: E402
 
 get_settings.cache_clear()
 get_llm_client.cache_clear()
 reset_repository()
-reset_limiters()
+reset_store()
+concurrency.reset()
 
 
 @pytest.fixture(autouse=True)
 def _reset_state():
-    """Keep DB and rate-limit state isolated between tests."""
+    """Keep DB, store (rate-limit/dedup/cache), and concurrency state isolated."""
     reset_repository()
-    reset_limiters()
+    reset_store()
+    concurrency.reset()
     yield

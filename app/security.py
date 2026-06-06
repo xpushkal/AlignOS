@@ -14,7 +14,6 @@ from __future__ import annotations
 import re
 import time
 from collections import defaultdict, deque
-from functools import lru_cache
 
 from app.config import get_settings
 
@@ -87,23 +86,3 @@ class RateLimiter:
 
     def reset(self) -> None:
         self._hits.clear()
-
-
-@lru_cache
-def get_user_limiter() -> RateLimiter:
-    """Per Slack-user limiter."""
-    s = get_settings()
-    return RateLimiter(s.rate_limit_max_calls, s.rate_limit_window_seconds)
-
-
-@lru_cache
-def get_agent_limiter() -> RateLimiter:
-    """Per-IP limiter for the internal /agent endpoints."""
-    s = get_settings()
-    return RateLimiter(s.rate_limit_max_calls, s.rate_limit_window_seconds)
-
-
-def reset_limiters() -> None:
-    """Test helper — clear cached limiters."""
-    get_user_limiter.cache_clear()
-    get_agent_limiter.cache_clear()

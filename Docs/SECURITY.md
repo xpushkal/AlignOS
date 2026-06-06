@@ -80,8 +80,10 @@ Configure via env (see [.env.example](../.env.example)):
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Window length |
 | `MAX_INPUT_CHARS` | `4000` | Max chars accepted from a single message |
 
-> The limiter is **in-process**. For a multi-instance deployment, back it with a
-> shared store (e.g. Redis) so limits hold across replicas.
+> The limiter defaults to **in-process** state. Set `REDIS_URL` to share rate
+> limits, event-dedup, and the answer cache across multiple instances (see
+> [ARCHITECTURE.md](ARCHITECTURE.md) §2.4a) — required when running more than one
+> replica behind a load balancer.
 
 ---
 

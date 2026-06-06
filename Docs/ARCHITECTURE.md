@@ -98,6 +98,35 @@ The central nervous system. Owns:
   `verify_evidence`, `generate_project_summary`, `reopen_decision`,
   `log_conflict_action`.
 
+### 2.4a Cost gate (scale)
+The high-volume path is channel messages. To avoid an LLM call on every message,
+the flows pre-gate with cheap rules ([app/llm/heuristics.py](../app/llm/heuristics.py)):
+- **Decision** detection runs the LLM only if the message contains decision
+  language (`has_decision_cue`).
+- **Conflict** detection runs the LLM only if the message shares keywords with
+  confirmed memory or trips the rule-based signal (`has_conflict_signal`).
+
+Most chatter matches neither, so it costs zero LLM calls — turning ~2 calls/message
+into ~2 calls only for the small fraction that are decision/conflict-like.
+
+**Concurrency:** the repository (psycopg) and LLM (OpenAI SDK) calls are
+synchronous, so they are run off the event loop via
+[app/concurrency.py](../app/concurrency.py) `run_blocking` (thread pool bounded by
+`MAX_CONCURRENCY`, with the Neon pool sized to match). This lets independent Slack
+events process in parallel — one slow LLM call no longer stalls everyone (measured
+~2.6x on 5 concurrent requests).
+
+**Shared state (multi-instance):** rate limiting, event-dedup, and a versioned
+answer cache live in [app/store.py](../app/store.py). With `REDIS_URL` set they are
+backed by Redis and shared across replicas, so AlignOS can run as multiple
+stateless instances behind a load balancer (HTTP events at `/slack/events`);
+unset, it uses per-process state (single instance). The answer cache is keyed by a
+per-scope version that bumps on each confirmed decision, so cached answers are
+never stale.
+
+Remaining scaling steps (not yet implemented): a durable ack-and-queue (Redis/RQ)
+for spike buffering and retries, and per-channel batching of bursts.
+
 ### 2.5 LLM Reasoning Layer
 - Calls models through **OpenRouter** (OpenAI-compatible API); default model
   `openai/gpt-4o-mini`, configurable via `OPENROUTER_MODEL`.

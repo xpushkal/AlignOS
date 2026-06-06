@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from app import mcp_client
+from app.concurrency import run_blocking
+from app.llm import heuristics
 
 
 async def check_conflict(
@@ -18,21 +20,30 @@ async def check_conflict(
     message_ts: str | None = None,
     recent_context: str = "",
 ) -> dict[str, Any]:
-    """Return {conflict: bool, detection: {...}, conflict_id?: str}."""
+    """Return {conflict: bool, detection: {...}, conflict_id?: str}.
+
+    Cheap pre-gate: only escalate to the LLM when the message either shares
+    keywords with confirmed memory (direct overlap) or trips the rule-based
+    conflict signal (e.g. opposing tech terms). Unrelated chatter skips the LLM.
+    """
+    from app.db import get_repository
+
     search = await mcp_client.call_tool(
         "search_memory",
         {"query": message, "workspace_id": workspace_id, "channel_id": channel_id},
     )
     relevant = search.get("memory_items", [])
     if not relevant:
-        # A contradiction often uses different words than the memory it conflicts
-        # with (e.g. "MongoDB" vs a stored "PostgreSQL" decision), so fall back to
-        # recent memory and let detect_conflict judge it (PRD §17.3 step 5).
-        from app.db import get_repository
-
-        relevant = get_repository().list_memory(workspace_id, channel_id)
-    if not relevant:
-        return {"conflict": False, "detection": {"is_conflict": False}}
+        # No keyword overlap. A contradiction can still use different words than
+        # the memory it conflicts with (e.g. "MongoDB" vs a stored "PostgreSQL"
+        # decision), so consult recent memory — but only pay for the LLM if the
+        # cheap rule-based signal fires (PRD §17.3 step 5).
+        recent = await run_blocking(
+            get_repository().list_memory, workspace_id, channel_id
+        )
+        if not heuristics.has_conflict_signal(message, recent):
+            return {"conflict": False, "detection": {"is_conflict": False}}
+        relevant = recent
 
     detection = await mcp_client.call_tool(
         "detect_conflict",
@@ -46,9 +57,8 @@ async def check_conflict(
         return {"conflict": False, "detection": detection}
 
     # Persist the conflict through the repository (no dedicated MCP tool needed).
-    from app.db import get_repository
-
-    row = get_repository().save_conflict(
+    row = await run_blocking(
+        get_repository().save_conflict,
         {
             "workspace_id": workspace_id,
             "channel_id": channel_id,
@@ -58,6 +68,6 @@ async def check_conflict(
             "new_message_summary": message,
             "conflicting_memory_id": detection.get("conflicting_memory_id"),
             "explanation": detection.get("explanation"),
-        }
+        },
     )
     return {"conflict": True, "detection": detection, "conflict_id": row["id"]}

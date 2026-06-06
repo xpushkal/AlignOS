@@ -11,15 +11,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.concurrency import run_blocking
 from mcp_server import core
 
 logger = logging.getLogger("alignos.mcp_client")
 
 
 async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Invoke an MCP tool by name and return its parsed result dict."""
+    """Invoke an MCP tool by name and return its parsed result dict.
+
+    Runs the (blocking) tool — DB + LLM work — in a worker thread so it does not
+    stall the event loop, bounded by max_concurrency.
+    """
     try:
-        return core.call(name, arguments)
+        return await run_blocking(core.call, name, arguments)
     except KeyError:
         logger.error("Unknown MCP tool requested: %s", name)
         raise

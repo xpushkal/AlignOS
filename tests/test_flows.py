@@ -68,3 +68,51 @@ async def test_summary_lists_confirmed_decision():
     summary = await flows.project_summary(WS, CH)
     titles = [d["title"].lower() for d in summary["confirmed_decisions"]]
     assert any("postgresql" in t for t in titles)
+
+
+# --- cost gates: the LLM must be skipped on plain chatter ---
+async def test_decision_gate_skips_llm_without_cue(monkeypatch):
+    from app.flows import decision as decision_flow
+
+    calls = []
+
+    async def spy(name, args):
+        calls.append(name)
+        return {"is_decision": True, "confidence": 0.9}
+
+    monkeypatch.setattr(decision_flow.mcp_client, "call_tool", spy)
+    result = await flows.detect_and_propose("anyone up for lunch at 1?", WS, CH)
+    assert result["proposed"] is False
+    assert calls == []  # no LLM/tool call at all
+
+
+async def test_decision_gate_runs_llm_with_cue(monkeypatch):
+    from app.flows import decision as decision_flow
+
+    calls = []
+
+    async def spy(name, args):
+        calls.append(name)
+        return {"is_decision": True, "confidence": 0.9, "title": "x"}
+
+    monkeypatch.setattr(decision_flow.mcp_client, "call_tool", spy)
+    await flows.detect_and_propose("Okay we'll use Postgres for v1.", WS, CH)
+    assert "detect_decision" in calls
+
+
+async def test_conflict_gate_skips_llm_without_signal(monkeypatch):
+    from app.flows import conflict as conflict_flow
+
+    calls = []
+
+    async def spy(name, args):
+        calls.append(name)
+        if name == "search_memory":
+            return {"memory_items": []}
+        return {}
+
+    monkeypatch.setattr(conflict_flow.mcp_client, "call_tool", spy)
+    # empty in-memory repo (autouse reset) -> no signal -> no detect_conflict call
+    result = await flows.check_conflict("random unrelated chatter", WS, CH)
+    assert result["conflict"] is False
+    assert "detect_conflict" not in calls

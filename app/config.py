@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     agent_api_token: str | None = None  # if set, /agent/* requires X-AlignOS-Token
 
+    # Concurrency / scale
+    max_concurrency: int = 8       # max blocking (DB/LLM) tasks running at once
+    db_pool_max_size: int = 10     # Neon connection pool size (>= max_concurrency)
+
+    # Shared state (Redis) — enables running multiple instances. Falls back to
+    # in-process state when unset (single instance only).
+    redis_url: str | None = None
+    cache_ttl_seconds: int = 300
+
+    @property
+    def redis_configured(self) -> bool:
+        return bool(self.redis_url)
+
     @property
     def slack_configured(self) -> bool:
         return bool(self.slack_bot_token and self.slack_signing_secret)
