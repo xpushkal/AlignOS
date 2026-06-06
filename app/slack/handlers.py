@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import deque
 
 from app import flows
 from app.intent import (
@@ -19,34 +18,21 @@ from app.intent import (
     SHOW_MEMORY,
     classify,
 )
-from app.security import get_user_limiter, sanitize_text
+from app.security import sanitize_text
 from app.slack import cards
+from app.store import get_store
 
 logger = logging.getLogger("alignos.slack")
 
 
-def _allowed(ws: str, user: str | None) -> bool:
-    """Per-user rate-limit gate (V1). Missing user id falls back to workspace."""
-    return get_user_limiter().check(f"{ws}:{user or 'unknown'}")
+async def _allowed(ws: str, user: str | None) -> bool:
+    """Per-user rate-limit gate (V1), shared across instances via the store."""
+    return await get_store().rate_allow(f"{ws}:{user or 'unknown'}")
 
 
-# --- event idempotency (PRD §13.1, §14.2): dedupe by Slack event_id so retries
-# and redeliveries are processed at most once. Bounded in-memory set.
-_SEEN_MAX = 4000
-_seen_ids: deque[str] = deque(maxlen=_SEEN_MAX)
-_seen_set: set[str] = set()
-
-
-def _duplicate(event_id: str | None) -> bool:
-    if not event_id:
-        return False
-    if event_id in _seen_set:
-        return True
-    _seen_ids.append(event_id)
-    _seen_set.add(event_id)
-    if len(_seen_set) > _SEEN_MAX:
-        _seen_set.intersection_update(_seen_ids)
-    return False
+async def _duplicate(event_id: str | None) -> bool:
+    """Event idempotency (PRD §13.1, §14.2), shared across instances via the store."""
+    return await get_store().seen(event_id)
 
 
 def build_bolt_app():
@@ -62,12 +48,12 @@ def build_bolt_app():
 
     @app.event("app_mention")
     async def on_mention(event, say, body):
-        if _duplicate(body.get("event_id")):
+        if await _duplicate(body.get("event_id")):
             return
         ws = event.get("team", "")
         ch = event.get("channel")
         user = event.get("user")
-        if not _allowed(ws, user):
+        if not await _allowed(ws, user):
             logger.warning("Rate limit hit for mention from %s in %s", user, ws)
             await say(text=":hourglass: You're sending requests too fast — try again shortly.")
             return
@@ -92,7 +78,7 @@ def build_bolt_app():
 
     @app.event("message")
     async def on_message(event, say, body, context):
-        if _duplicate(body.get("event_id")):
+        if await _duplicate(body.get("event_id")):
             return
         # Ignore bot messages / edits to prevent loops (PRD §13.1).
         if event.get("bot_id") or event.get("subtype"):
@@ -108,7 +94,7 @@ def build_bolt_app():
         ch = event.get("channel")
         user = event.get("user")
         ts = event.get("ts")
-        if not _allowed(ws, user):
+        if not await _allowed(ws, user):
             logger.warning("Rate limit hit for message from %s in %s", user, ws)
             return
         text = sanitize_text(raw_text)

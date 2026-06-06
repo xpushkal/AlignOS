@@ -1,17 +1,15 @@
 """Tests for Slack handler helpers: event idempotency and decision payload decode."""
-import json
-
 from app.slack import cards
 from app.slack import handlers
+from app.store import get_store
 
 
-def test_duplicate_event_detection():
-    handlers._seen_ids.clear()
-    handlers._seen_set.clear()
-    assert handlers._duplicate("evt-1") is False  # first time
-    assert handlers._duplicate("evt-1") is True   # retry/redelivery
-    assert handlers._duplicate("evt-2") is False  # different event
-    assert handlers._duplicate(None) is False     # missing id never dedupes
+async def test_duplicate_event_detection():
+    store = get_store()
+    assert await store.seen("evt-1") is False  # first time
+    assert await store.seen("evt-1") is True   # retry/redelivery
+    assert await store.seen("evt-2") is False  # different event
+    assert await store.seen(None) is False     # missing id never dedupes
 
 
 def test_decision_value_roundtrip_preserves_payload_and_is_searchable():

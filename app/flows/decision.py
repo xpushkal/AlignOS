@@ -51,7 +51,7 @@ async def confirm_decision(
     confirmed_by: str | None = None,
 ) -> dict[str, Any]:
     """Persist a confirmed decision; returns {decision_id, status}."""
-    return await mcp_client.call_tool(
+    result = await mcp_client.call_tool(
         "save_decision",
         {
             "decision": decision,
@@ -60,3 +60,8 @@ async def confirm_decision(
             "confirmed_by": confirmed_by,
         },
     )
+    # Invalidate cached answers for this scope — confirmed memory changed.
+    from app.store import get_store
+
+    await get_store().bump_version(f"{workspace_id}:{channel_id}")
+    return result

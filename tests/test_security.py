@@ -46,14 +46,14 @@ def test_rate_limiter_allows_then_blocks():
 
 # --- endpoint protections ---
 def test_agent_endpoint_rate_limited(monkeypatch):
-    from app import security
     from app.config import get_settings
+    from app.store import reset_store
 
     get_settings.cache_clear()
     monkeypatch.setenv("RATE_LIMIT_MAX_CALLS", "2")
     monkeypatch.setenv("OPENROUTER_API_KEY", "")
     monkeypatch.setenv("DATABASE_URL", "")
-    security.reset_limiters()
+    reset_store()
 
     from app.main import api
 
@@ -63,17 +63,17 @@ def test_agent_endpoint_rate_limited(monkeypatch):
     assert client.post("/agent/detect-decision", json=payload).status_code == 200
     assert client.post("/agent/detect-decision", json=payload).status_code == 429
     get_settings.cache_clear()
-    security.reset_limiters()
+    reset_store()
 
 
 def test_agent_endpoint_requires_token_when_configured(monkeypatch):
-    from app import security
     from app.config import get_settings
+    from app.store import reset_store
 
     get_settings.cache_clear()
     monkeypatch.setenv("AGENT_API_TOKEN", "s3cret")
     monkeypatch.setenv("RATE_LIMIT_MAX_CALLS", "100")
-    security.reset_limiters()
+    reset_store()
 
     from app.main import api
 
@@ -83,7 +83,7 @@ def test_agent_endpoint_requires_token_when_configured(monkeypatch):
     ok = client.post("/agent/ask", json=payload, headers={"X-AlignOS-Token": "s3cret"})
     assert ok.status_code == 200
     get_settings.cache_clear()
-    security.reset_limiters()
+    reset_store()
 
 
 def test_injection_text_does_not_hijack_detection():

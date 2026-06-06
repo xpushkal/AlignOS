@@ -116,10 +116,16 @@ synchronous, so they are run off the event loop via
 events process in parallel — one slow LLM call no longer stalls everyone (measured
 ~2.6x on 5 concurrent requests).
 
+**Shared state (multi-instance):** rate limiting, event-dedup, and a versioned
+answer cache live in [app/store.py](../app/store.py). With `REDIS_URL` set they are
+backed by Redis and shared across replicas, so AlignOS can run as multiple
+stateless instances behind a load balancer (HTTP events at `/slack/events`);
+unset, it uses per-process state (single instance). The answer cache is keyed by a
+per-scope version that bumps on each confirmed decision, so cached answers are
+never stale.
+
 Remaining scaling steps (not yet implemented): a durable ack-and-queue (Redis/RQ)
-for spike buffering and retries, a shared Redis for rate-limit/dedup/cache across
-multiple instances (switch Socket Mode → HTTP events behind a load balancer), and
-per-channel batching of bursts.
+for spike buffering and retries, and per-channel batching of bursts.
 
 ### 2.5 LLM Reasoning Layer
 - Calls models through **OpenRouter** (OpenAI-compatible API); default model

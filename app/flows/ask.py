@@ -5,9 +5,12 @@ grounded answer — or a no-evidence refusal when support is insufficient (§9.6
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app import mcp_client
+from app.config import get_settings
+from app.store import get_store
 
 
 async def answer_question(
@@ -16,7 +19,23 @@ async def answer_question(
     channel_id: str | None = None,
     evidence_messages: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Return a grounded answer dict for a memory question."""
+    """Return a grounded answer dict for a memory question.
+
+    Answers are cached per (workspace, channel, memory-version, question). The
+    version is bumped whenever a decision is confirmed, so the cache is never
+    stale. Skipped when live evidence is passed in (that path varies per call).
+    """
+    store = get_store()
+    cache_key = None
+    if not evidence_messages:
+        scope = f"{workspace_id}:{channel_id}"
+        version = await store.get_version(scope)
+        qnorm = " ".join(question.lower().split())
+        cache_key = f"ans:{scope}:{version}:{qnorm}"
+        hit = await store.cache_get(cache_key)
+        if hit is not None:
+            return json.loads(hit)
+
     search = await mcp_client.call_tool(
         "search_memory",
         {"query": question, "workspace_id": workspace_id, "channel_id": channel_id},
@@ -38,7 +57,7 @@ async def answer_question(
     confidence = verdict.get("final_confidence", verdict.get("confidence", 0.0))
 
     if not safe or support == "INSUFFICIENT_EVIDENCE":
-        return {
+        result = {
             "answer": (
                 "I could not find enough confirmed evidence to answer that. "
                 "I found discussion but no confirmed decision."
@@ -49,15 +68,19 @@ async def answer_question(
             "refused": True,
             "memory_items": memory_items,
         }
+    else:
+        result = {
+            "answer": proposed,
+            "support_level": support,
+            "confidence": confidence,
+            "source": "confirmed memory" if memory_items else "live discussion",
+            "refused": False,
+            "memory_items": memory_items,
+        }
 
-    return {
-        "answer": proposed,
-        "support_level": support,
-        "confidence": confidence,
-        "source": "confirmed memory" if memory_items else "live discussion",
-        "refused": False,
-        "memory_items": memory_items,
-    }
+    if cache_key is not None:
+        await store.cache_set(cache_key, json.dumps(result), get_settings().cache_ttl_seconds)
+    return result
 
 
 def _draft_answer(memory_items: list[dict]) -> str:
