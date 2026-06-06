@@ -7,7 +7,7 @@ then SETUP + ROADMAP to build.
 | --- | --- |
 | [prd.md](prd.md) | Full Product Requirements Document — vision, features, requirements, metrics, risks (all 32 sections). |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System components, the FastAPI↔MCP boundary, the two-layer memory model, and the three core runtime flows. |
-| [DATA_MODEL.md](DATA_MODEL.md) | The 10 Supabase tables, enums, relationships, indexes, and scoping rules. |
+| [DATA_MODEL.md](DATA_MODEL.md) | The 10 Neon Postgres tables, enums, relationships, indexes, and scoping rules. |
 | [MCP_TOOLS.md](MCP_TOOLS.md) | The 8 MCP tool contracts, the 3 LLM prompt JSON contracts, and no-hallucination guardrails. |
 | [API.md](API.md) | Backend HTTP endpoints, Slack mentions/commands/cards, scopes, and signature verification. |
 | [SETUP.md](SETUP.md) | Local dev setup: prerequisites, repo layout, env vars, Slack app config. |
@@ -23,4 +23,4 @@ then SETUP + ROADMAP to build.
 5. **[ROADMAP.md](ROADMAP.md)** — build it, phase by phase.
 
 **Stack:** Python + FastAPI · `slack_sdk` / Slack Bolt · custom MCP server ·
-Supabase PostgreSQL · pluggable LLM provider.
+Neon PostgreSQL · pluggable LLM provider.

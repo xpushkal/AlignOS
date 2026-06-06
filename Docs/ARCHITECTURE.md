@@ -5,7 +5,7 @@ between the Slack backend and the MCP server, the two-layer memory model, and th
 three core runtime flows.
 
 > **Committed stack:** Python + FastAPI backend, `slack_sdk` / Slack Bolt for
-> Python, a custom MCP server, Supabase PostgreSQL, and a pluggable LLM provider.
+> Python, a custom MCP server, Neon PostgreSQL, and a pluggable LLM provider.
 
 ---
 
@@ -39,7 +39,7 @@ three core runtime flows.
                         ▲                   ▼
                         │          ┌─────────────────────┐
           ┌─────────────┴────┐     │  Custom MCP Server   │
-          │  Supabase         │◀───▶│  (8 reasoning tools) │
+          │  Neon Postgres    │◀───▶│  (8 reasoning tools) │
           │  Memory Database  │     └──────────┬──────────┘
           └───────────────────┘                │
                                                 ▼
@@ -106,9 +106,10 @@ The central nervous system. Owns:
   PRD §19: refuse without evidence, separate "confirmed" from "discussed", prefer
   latest confirmed memory.
 
-### 2.6 Supabase Memory Database
-- The **verified, long-term memory layer**. Stores confirmed decisions, tasks,
-  blockers, conflicts, evidence references, and project summaries.
+### 2.6 Neon Memory Database
+- The **verified, long-term memory layer** (Neon serverless PostgreSQL, accessed
+  via psycopg). Stores confirmed decisions, tasks, blockers, conflicts, evidence
+  references, and project summaries.
 - Workspace/channel scoped. See [DATA_MODEL.md](DATA_MODEL.md).
 
 ---
@@ -121,7 +122,7 @@ AlignOS's intelligence comes from combining two distinct memory sources
 | Layer | Source | Nature | Used for |
 | --- | --- | --- | --- |
 | **Live Slack Context** | Real-Time Search API | Raw, fresh, unstructured | Latest messages, thread context, recent discussion, evidence retrieval |
-| **Verified Memory** | Supabase database | Clean, structured, long-term | Confirmed decisions, tasks, blockers, conflicts, summaries |
+| **Verified Memory** | Neon PostgreSQL | Clean, structured, long-term | Confirmed decisions, tasks, blockers, conflicts, summaries |
 
 Answers and conflict checks fuse both: confirmed memory is the source of truth,
 and live context provides freshness and supporting evidence.
@@ -155,7 +156,7 @@ Okay final, PostgreSQL for v1.
    (Confirm / Edit / Reject).
 6. User clicks **Confirm** → `POST /slack/interactions`.
 7. Backend calls `save_decision`.
-8. Decision is stored in Supabase with evidence links.
+8. Decision is stored in Neon with evidence links.
 9. Bot posts "Decision saved."
 
 ### 4.3 Conflict-Detection Flow

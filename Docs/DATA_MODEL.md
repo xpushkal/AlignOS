@@ -1,6 +1,7 @@
 # AlignOS Data Model
 
-The verified memory layer lives in **Supabase PostgreSQL**. This document
+The verified memory layer lives in **Neon PostgreSQL** (serverless Postgres,
+accessed via psycopg). This document
 specifies all 10 tables, their columns, enums, scoping rules, and suggested
 indexes.
 
@@ -23,8 +24,8 @@ leak across workspace/channel boundaries (PRD §9.3, §14.4).
 
 - All queries from the agent filter by `workspace_id`.
 - Channel-scoped reads additionally filter by `channel_id`.
-- Consider Supabase Row Level Security (RLS) keyed on `workspace_id` if/when
-  multi-tenant access is exposed beyond the service role.
+- Consider Postgres Row Level Security (RLS) keyed on `workspace_id` if/when
+  multi-tenant access is exposed beyond the trusted backend role.
 
 ---
 
@@ -226,6 +227,7 @@ audit_events *──1 workspaces/users    (action history)
 ## 6. Migrations
 
 DDL is **not** part of this documentation pass. When implementation begins,
-create migrations under `supabase/migrations/` (e.g. via the Supabase CLI) that
-materialize the enums and tables above. Keep migrations forward-only and checked
-into git so the schema is reproducible.
+create migrations under `migrations/` and apply them to Neon with
+`psql "$DATABASE_URL" -f migrations/0001_init.sql`. Keep migrations forward-only
+and checked into git so the schema is reproducible. The initial schema is in
+[../migrations/0001_init.sql](../migrations/0001_init.sql).

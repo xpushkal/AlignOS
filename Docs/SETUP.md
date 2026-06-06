@@ -2,7 +2,7 @@
 
 How to set up a local AlignOS development environment with the committed stack:
 **Python + FastAPI**, **`slack_sdk` / Slack Bolt for Python**, a **custom MCP
-server**, **Supabase PostgreSQL**, and a pluggable **LLM provider**.
+server**, **Neon PostgreSQL**, and a pluggable **LLM provider**.
 
 > **Status:** This is the intended setup for the codebase. No application code
 > exists yet — this document describes the structure to build against (see
@@ -15,36 +15,37 @@ server**, **Supabase PostgreSQL**, and a pluggable **LLM provider**.
 - **Python 3.11+**
 - A Python env/dependency manager — [`uv`](https://github.com/astral-sh/uv)
   (recommended) or Poetry, or `venv` + `pip`
-- A **Supabase** project (free tier is fine) — gives you a hosted Postgres + keys
+- A **Neon** project (free tier is fine) — gives you a serverless Postgres
+  `DATABASE_URL` connection string
 - A **Slack app** with a workspace you can install it into
 - **ngrok** (or similar) to expose your local server to Slack during development
 - An **LLM API key** (Anthropic / OpenAI / other compatible provider)
 
 ---
 
-## 2. Suggested Repository Layout
-
-This is the target structure for implementation (not yet created):
+## 2. Repository Layout
 
 ```text
 AlignOS/
 ├── app/                    # FastAPI backend (Slack orchestrator)
 │   ├── main.py             # FastAPI app + route registration
+│   ├── config.py           # env/settings loading (pydantic-settings)
 │   ├── slack/              # event/interaction/command handlers, signature verify
 │   ├── flows/              # ask / decision / conflict flow handlers
 │   ├── intent/             # intent router (rules + LLM fallback)
 │   ├── rts/                # Real-Time Search client + caching
-│   ├── mcp_client/         # MCP client wrapper
-│   ├── db/                 # Supabase client + queries
-│   └── config.py           # env/settings loading
-├── mcp_server/             # Custom MCP server (the 8 tools)
-│   └── tools/              # detect_decision, save_decision, ... one per file
-├── supabase/
-│   └── migrations/         # SQL migrations for the data model
+│   ├── mcp_client/         # MCP client wrapper (local-fallback transport)
+│   ├── llm/                # LLM client + offline heuristic fallback
+│   └── db/                 # Repository: Postgres (psycopg) + in-memory fallback
+├── mcp_server/             # Custom MCP server
+│   ├── core.py             # pure tool implementations (8 tools)
+│   └── server.py           # MCP stdio wrapper (python -m mcp_server)
+├── migrations/
+│   └── 0001_init.sql       # Neon/Postgres schema
 ├── tests/                  # unit/integration tests, demo harness
 ├── .env.example            # template for required env vars
-├── pyproject.toml          # deps (or requirements.txt)
-└── README.md
+├── pyproject.toml          # tooling config
+└── requirements.txt        # dependencies
 ```
 
 ---
@@ -59,10 +60,8 @@ SLACK_BOT_TOKEN=xoxb-...            # Bot User OAuth token
 SLACK_SIGNING_SECRET=...            # App Credentials → Signing Secret
 SLACK_APP_TOKEN=xapp-...            # Only if using Socket Mode
 
-# Supabase
-SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_SERVICE_KEY=...            # Service role key (server-side only, secret)
-DATABASE_URL=postgresql://...       # Direct Postgres connection (for migrations)
+# Neon PostgreSQL
+DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/alignos?sslmode=require
 
 # LLM provider (use whichever provider you choose)
 ANTHROPIC_API_KEY=...               # or OPENAI_API_KEY=...
@@ -81,11 +80,11 @@ PORT=8000
 ## 4. Install & Run
 
 ```bash
-# 1. Install dependencies (uv example)
-uv sync                # or: pip install -r requirements.txt
+# 1. Install dependencies
+pip install -r requirements.txt    # or: uv pip install -r requirements.txt
 
-# 2. Apply database migrations to Supabase
-supabase db push       # or run SQL in supabase/migrations/ via the dashboard
+# 2. Apply the schema to Neon
+psql "$DATABASE_URL" -f migrations/0001_init.sql
 
 # 3. Run the FastAPI backend
 uvicorn app.main:app --reload --port 8000
@@ -141,14 +140,18 @@ wired correctly. Proceed through the roadmap phases from there.
 
 ---
 
-## 7. Supabase Notes
+## 7. Neon Notes
 
-- Use the **service role key** server-side only; never ship it to a client.
+- Keep the `DATABASE_URL` server-side only; never ship it to a client. Use the
+  **pooled** connection endpoint from the Neon dashboard for serverless workloads.
 - Define the schema from [DATA_MODEL.md](DATA_MODEL.md) as forward-only
-  migrations in `supabase/migrations/`.
+  migrations in `migrations/`; the initial schema is
+  [../migrations/0001_init.sql](../migrations/0001_init.sql).
+- The app uses a dependency-free in-memory store when `DATABASE_URL` is unset, so
+  you can develop and run tests without Neon configured.
 - All agent queries are scoped by `workspace_id` (and `channel_id` where
-  relevant). Consider RLS keyed on `workspace_id` before exposing any
-  non-service-role access.
+  relevant). Consider Postgres RLS keyed on `workspace_id` before exposing any
+  access beyond the trusted backend role.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the big picture and
 [ROADMAP.md](ROADMAP.md) for what to build first.

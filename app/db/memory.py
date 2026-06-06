@@ -1,7 +1,7 @@
 """In-memory Repository implementation.
 
 Zero external dependencies. Used for local dev, tests, and the demo harness when
-Supabase is not configured. Data lives only for the process lifetime.
+no database (DATABASE_URL) is configured. Data lives only for the process lifetime.
 """
 from __future__ import annotations
 
