@@ -98,6 +98,19 @@ The central nervous system. Owns:
   `verify_evidence`, `generate_project_summary`, `reopen_decision`,
   `log_conflict_action`.
 
+### 2.4a Cost gate (scale)
+The high-volume path is channel messages. To avoid an LLM call on every message,
+the flows pre-gate with cheap rules ([app/llm/heuristics.py](../app/llm/heuristics.py)):
+- **Decision** detection runs the LLM only if the message contains decision
+  language (`has_decision_cue`).
+- **Conflict** detection runs the LLM only if the message shares keywords with
+  confirmed memory or trips the rule-based signal (`has_conflict_signal`).
+
+Most chatter matches neither, so it costs zero LLM calls — turning ~2 calls/message
+into ~2 calls only for the small fraction that are decision/conflict-like. Next
+scaling steps (not yet implemented): ack-and-queue with a worker pool, a shared
+Redis for rate-limit/dedup/cache across instances, and per-channel batching.
+
 ### 2.5 LLM Reasoning Layer
 - Calls models through **OpenRouter** (OpenAI-compatible API); default model
   `openai/gpt-4o-mini`, configurable via `OPENROUTER_MODEL`.
