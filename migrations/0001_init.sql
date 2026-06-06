@@ -1,5 +1,6 @@
--- AlignOS initial schema (Supabase / PostgreSQL)
+-- AlignOS initial schema (Neon / PostgreSQL)
 -- Mirrors Docs/DATA_MODEL.md. Forward-only migration.
+-- Apply with: psql "$DATABASE_URL" -f migrations/0001_init.sql
 
 create extension if not exists "pgcrypto";   -- gen_random_uuid()
 create extension if not exists "pg_trgm";     -- trigram search on titles/summaries

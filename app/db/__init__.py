@@ -2,9 +2,10 @@
 
 Exposes a `Repository` protocol with two implementations:
 
-- `SupabaseRepository` — backed by Supabase Postgres (used when configured).
+- `PostgresRepository` — backed by Neon PostgreSQL via psycopg (used when
+  `DATABASE_URL` is configured).
 - `InMemoryRepository` — a dependency-free fallback used for local dev, tests,
-  and the demo harness when Supabase credentials are absent.
+  and the demo harness when no database is configured.
 
 `get_repository()` returns the appropriate one based on settings.
 """
@@ -25,10 +26,10 @@ def get_repository() -> Repository:
         return _repo
 
     settings = get_settings()
-    if settings.supabase_configured:
-        from .supabase_repo import SupabaseRepository
+    if settings.database_configured:
+        from .postgres_repo import PostgresRepository
 
-        _repo = SupabaseRepository(settings.supabase_url, settings.supabase_service_key)
+        _repo = PostgresRepository(settings.database_url)
     else:
         _repo = InMemoryRepository()
     return _repo

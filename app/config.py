@@ -27,9 +27,8 @@ class Settings(BaseSettings):
     slack_signing_secret: str | None = None
     slack_app_token: str | None = None
 
-    # Supabase
-    supabase_url: str | None = None
-    supabase_service_key: str | None = None
+    # Database (Neon PostgreSQL)
+    database_url: str | None = None
 
     # LLM
     anthropic_api_key: str | None = None
@@ -43,8 +42,8 @@ class Settings(BaseSettings):
         return bool(self.slack_bot_token and self.slack_signing_secret)
 
     @property
-    def supabase_configured(self) -> bool:
-        return bool(self.supabase_url and self.supabase_service_key)
+    def database_configured(self) -> bool:
+        return bool(self.database_url)
 
     @property
     def llm_configured(self) -> bool:
