@@ -7,6 +7,8 @@ loaded from `.env` (env vars take precedence in pydantic-settings).
 """
 import os
 
+import pytest
+
 os.environ["DATABASE_URL"] = ""
 os.environ["OPENROUTER_API_KEY"] = ""
 os.environ["SLACK_BOT_TOKEN"] = ""
@@ -16,7 +18,17 @@ os.environ["SLACK_SIGNING_SECRET"] = ""
 from app.config import get_settings  # noqa: E402
 from app.db import reset_repository  # noqa: E402
 from app.llm import get_llm_client  # noqa: E402
+from app.security import reset_limiters  # noqa: E402
 
 get_settings.cache_clear()
 get_llm_client.cache_clear()
 reset_repository()
+reset_limiters()
+
+
+@pytest.fixture(autouse=True)
+def _reset_state():
+    """Keep DB and rate-limit state isolated between tests."""
+    reset_repository()
+    reset_limiters()
+    yield
