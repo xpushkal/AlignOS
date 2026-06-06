@@ -107,9 +107,19 @@ the flows pre-gate with cheap rules ([app/llm/heuristics.py](../app/llm/heuristi
   confirmed memory or trips the rule-based signal (`has_conflict_signal`).
 
 Most chatter matches neither, so it costs zero LLM calls — turning ~2 calls/message
-into ~2 calls only for the small fraction that are decision/conflict-like. Next
-scaling steps (not yet implemented): ack-and-queue with a worker pool, a shared
-Redis for rate-limit/dedup/cache across instances, and per-channel batching.
+into ~2 calls only for the small fraction that are decision/conflict-like.
+
+**Concurrency:** the repository (psycopg) and LLM (OpenAI SDK) calls are
+synchronous, so they are run off the event loop via
+[app/concurrency.py](../app/concurrency.py) `run_blocking` (thread pool bounded by
+`MAX_CONCURRENCY`, with the Neon pool sized to match). This lets independent Slack
+events process in parallel — one slow LLM call no longer stalls everyone (measured
+~2.6x on 5 concurrent requests).
+
+Remaining scaling steps (not yet implemented): a durable ack-and-queue (Redis/RQ)
+for spike buffering and retries, a shared Redis for rate-limit/dedup/cache across
+multiple instances (switch Socket Mode → HTTP events behind a load balancer), and
+per-channel batching of bursts.
 
 ### 2.5 LLM Reasoning Layer
 - Calls models through **OpenRouter** (OpenAI-compatible API); default model

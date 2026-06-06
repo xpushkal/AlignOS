@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from app import mcp_client
+from app.concurrency import run_blocking
 from app.llm import heuristics
 
 
@@ -37,7 +38,9 @@ async def check_conflict(
         # the memory it conflicts with (e.g. "MongoDB" vs a stored "PostgreSQL"
         # decision), so consult recent memory — but only pay for the LLM if the
         # cheap rule-based signal fires (PRD §17.3 step 5).
-        recent = get_repository().list_memory(workspace_id, channel_id)
+        recent = await run_blocking(
+            get_repository().list_memory, workspace_id, channel_id
+        )
         if not heuristics.has_conflict_signal(message, recent):
             return {"conflict": False, "detection": {"is_conflict": False}}
         relevant = recent
@@ -54,7 +57,8 @@ async def check_conflict(
         return {"conflict": False, "detection": detection}
 
     # Persist the conflict through the repository (no dedicated MCP tool needed).
-    row = get_repository().save_conflict(
+    row = await run_blocking(
+        get_repository().save_conflict,
         {
             "workspace_id": workspace_id,
             "channel_id": channel_id,
@@ -64,6 +68,6 @@ async def check_conflict(
             "new_message_summary": message,
             "conflicting_memory_id": detection.get("conflicting_memory_id"),
             "explanation": detection.get("explanation"),
-        }
+        },
     )
     return {"conflict": True, "detection": detection, "conflict_id": row["id"]}

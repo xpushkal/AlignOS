@@ -24,11 +24,13 @@ class PostgresRepository(Repository):
         from psycopg.rows import dict_row  # lazy import
         from psycopg_pool import ConnectionPool
 
+        from app.config import get_settings
+
         self.dsn = dsn
         self._pool = ConnectionPool(
             dsn,
             min_size=1,
-            max_size=4,
+            max_size=max(4, get_settings().db_pool_max_size),
             open=True,
             # Reset/ping a connection before handing it out so a stale one
             # (closed by Neon while idle) is recycled instead of erroring.
