@@ -1,22 +1,52 @@
 # AlignOS
 
-Turn Slack chaos into verified team memory.
+> Turn Slack chaos into verified team memory.
 
-AlignOS is a Slack-native AI agent that turns messy team conversations into structured, evidence-backed organizational memory. It detects decisions, extracts project context, identifies conflicts, answers questions using live Slack evidence, and maintains a verified memory layer for teams.
+AlignOS is a Slack-native AI agent that turns messy team conversations into
+structured, evidence-backed organizational memory. It detects decisions, extracts
+project context, identifies conflicts, answers questions using live Slack
+evidence, and maintains a verified memory layer for teams.
 
-Unlike a normal Slack chatbot, AlignOS is designed to continuously observe project conversations, detect meaningful events, ask for human confirmation when needed, update a structured memory database, and warn teams when new messages contradict previously confirmed decisions.
+Unlike a normal Slack chatbot, AlignOS is designed to continuously observe project
+conversations, detect meaningful events, ask for human confirmation when needed,
+update a structured memory database, and warn teams when new messages contradict
+previously confirmed decisions.
+
+---
 
 ## Project Status
 
-This repository currently contains the product requirements document for AlignOS:
+This repository currently holds the **complete product and engineering
+documentation** for AlignOS. Application code has not been written yet — the docs
+define the spec, architecture, data model, and a phased build plan so
+implementation can begin cleanly.
 
-- `Docs/Product Requirements Document.pdf`
+**Committed stack:** Python + FastAPI · `slack_sdk` / Slack Bolt for Python ·
+custom MCP server · Supabase PostgreSQL · pluggable LLM provider.
 
-Implementation files are not included yet. The README below summarizes the intended product, MVP scope, architecture, and build plan from the PRD.
+### Documentation Map
+
+| Doc | What's in it |
+| --- | --- |
+| [Docs/prd.md](Docs/prd.md) | Full Product Requirements Document (all 32 sections) |
+| [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md) | Components, backend↔MCP boundary, two-memory model, core flows |
+| [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md) | All 10 Supabase tables, enums, indexes |
+| [Docs/MCP_TOOLS.md](Docs/MCP_TOOLS.md) | The 8 MCP tools + LLM JSON contracts + guardrails |
+| [Docs/API.md](Docs/API.md) | HTTP endpoints, Slack surface, scopes, signature verification |
+| [Docs/SETUP.md](Docs/SETUP.md) | Local dev environment, env vars, Slack app config |
+| [Docs/ROADMAP.md](Docs/ROADMAP.md) | 7-phase build plan + MVP checklist + demo script |
+| [Docs/README.md](Docs/README.md) | Index of all docs |
+
+**Getting started:** see [Docs/SETUP.md](Docs/SETUP.md), then follow the phases
+in [Docs/ROADMAP.md](Docs/ROADMAP.md).
+
+---
 
 ## Core Idea
 
-Teams already make decisions in Slack, but those decisions get buried in channels, threads, and files. AlignOS converts that unstructured conversation into a live, verified project memory.
+Teams already make decisions in Slack, but those decisions get buried in channels,
+threads, and files. AlignOS converts that unstructured conversation into a live,
+verified project memory.
 
 AlignOS combines:
 
@@ -24,15 +54,18 @@ AlignOS combines:
 - Real-time Slack context retrieval
 - RAG-based evidence verification
 - MCP tools for decision, memory, and conflict operations
-- A structured memory database for decisions, tasks, blockers, conflicts, and project state
+- A structured memory database for decisions, tasks, blockers, conflicts, and
+  project state
 
 ## Target Users
 
 - Hackathon teams that need fast decision tracking and demo-friendly workflows
 - Startup and product teams making rapid decisions in Slack
-- Engineering teams discussing technical decisions, bugs, deployments, and architecture
+- Engineering teams discussing technical decisions, bugs, deployments, and
+  architecture
 - Student project groups collaborating on assignments or software projects
-- Managers, team leads, new joiners, and documentation owners who need reliable project context
+- Managers, team leads, new joiners, and documentation owners who need reliable
+  project context
 
 ## Key Features
 
@@ -44,7 +77,8 @@ Users can ask questions such as:
 @AlignOS what did we decide about the database?
 ```
 
-AlignOS searches confirmed memory and live Slack evidence before answering. If evidence is weak or missing, it refuses to invent an answer.
+AlignOS searches confirmed memory and live Slack evidence before answering. If
+evidence is weak or missing, it refuses to invent an answer.
 
 ### Automatic Decision Detection
 
@@ -56,7 +90,8 @@ AlignOS detects decision-like messages such as:
 - "Let's go with..."
 - "Deadline is fixed for..."
 
-When a likely decision is found, AlignOS posts a Slack confirmation card with actions to confirm, edit, or reject the decision.
+When a likely decision is found, AlignOS posts a Slack confirmation card with
+actions to confirm, edit, or reject the decision.
 
 ### Live Memory Database
 
@@ -83,7 +118,8 @@ Confirmed memory: Database = PostgreSQL for v1
 New message: I'll start MongoDB setup.
 ```
 
-AlignOS can alert the team and offer actions such as reminding the decision, reopening the decision, or ignoring the alert.
+AlignOS can alert the team and offer actions such as reminding the decision,
+reopening the decision, or ignoring the alert.
 
 ### Project Memory Summary
 
@@ -93,16 +129,19 @@ Users can ask:
 @AlignOS show project memory
 ```
 
-AlignOS returns a skimmable summary of current goals, confirmed decisions, open tasks, blockers, unresolved questions, recent conflicts, and upcoming deadlines.
+AlignOS returns a skimmable summary of current goals, confirmed decisions, open
+tasks, blockers, unresolved questions, recent conflicts, and upcoming deadlines.
 
 ### No-Evidence Refusal
 
-If a user asks about something that was discussed but not confirmed, AlignOS distinguishes between discussion and decision.
+If a user asks about something that was discussed but not confirmed, AlignOS
+distinguishes between discussion and decision.
 
 Example:
 
 ```text
-I could not find enough evidence that pricing was finalized. I found discussion about possible pricing options, but no confirmed decision.
+I could not find enough evidence that pricing was finalized. I found discussion
+about possible pricing options, but no confirmed decision.
 ```
 
 ## MVP Scope
@@ -113,169 +152,44 @@ The MVP is intended to include:
 - Slack message event listener
 - Real-time Slack search retrieval
 - MCP client connected to a custom MCP server
-- Decision detection
-- Decision saving
-- Memory search
-- Conflict detection
-- Evidence verification
-- PostgreSQL or Supabase memory database
-- Slack confirmation buttons
-- Slack conflict alert buttons
+- Decision detection, decision saving, memory search
+- Conflict detection and evidence verification
+- Supabase PostgreSQL memory database
+- Slack confirmation and conflict-alert buttons
 - Project memory summary command
 - Evidence-backed Q&A
 
-## Suggested Architecture
+Full phase-by-phase plan in [Docs/ROADMAP.md](Docs/ROADMAP.md).
+
+## Architecture (at a glance)
 
 ```text
 Slack Workspace
   -> Slack App / Agent Interface
-  -> Backend Orchestrator
+  -> FastAPI Backend Orchestrator
   -> Intent Router
-  -> Real-Time Search API + Memory DB
+  -> Real-Time Search API + Supabase Memory DB
   -> MCP Client
   -> Custom MCP Server Tools
   -> LLM Reasoning Layer
   -> Slack Response / Card / Alert
 ```
 
-## Suggested Tech Stack
-
-### Slack Interface
-
-- Slack app
-- Slack Block Kit
-- App mentions
-- Message events
-- Buttons and modals
-- Optional slash commands
-
-### Backend
-
-Preferred:
-
-- Node.js
-- Slack Bolt SDK
-- Express or Fastify
-
-Alternative:
-
-- Python
-- FastAPI
-- Slack SDK
-
-### AI Layer
-
-- LLM provider such as OpenAI, Anthropic, or another compatible model provider
-- Structured JSON outputs
-- RAG evidence verification prompts
-- Guardrails for no-evidence refusal
-
-### MCP Layer
-
-- Custom MCP server
-- MCP client in the backend
-- Tools for memory, decision detection, conflict detection, and evidence verification
-
-### Database
-
-- Supabase PostgreSQL
-- Plain PostgreSQL
-- SQLite for local demos only
-
-### Deployment
-
-- Render
-- Railway
-- Fly.io
-- ngrok for local Slack testing
+Full detail in [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md).
 
 ## Core MCP Tools
 
-The custom MCP server should expose:
-
-- `detect_decision`
-- `save_decision`
-- `search_memory`
-- `detect_conflict`
-- `verify_evidence`
-- `generate_project_summary`
-- `reopen_decision`
-- `log_conflict_action`
-
-The Slack backend should handle Slack events. The MCP server should focus on tools and reasoning operations.
+The custom MCP server exposes: `detect_decision`, `save_decision`,
+`search_memory`, `detect_conflict`, `verify_evidence`, `generate_project_summary`,
+`reopen_decision`, and `log_conflict_action`. The Slack backend handles Slack
+events; the MCP server focuses on tools and reasoning operations. See
+[Docs/MCP_TOOLS.md](Docs/MCP_TOOLS.md).
 
 ## Data Model
 
-Planned database tables include:
-
-- `workspaces`
-- `channels`
-- `users`
-- `decisions`
-- `tasks`
-- `blockers`
-- `conflicts`
-- `evidence_links`
-- `memory_items`
-- `audit_events`
-
-Decision statuses:
-
-- `proposed`
-- `confirmed`
-- `rejected`
-- `reopened`
-- `superseded`
-
-Conflict statuses:
-
-- `open`
-- `ignored`
-- `resolved`
-- `reopened_decision`
-
-## Main Flows
-
-### Ask a Question
-
-1. User mentions AlignOS in Slack.
-2. Backend verifies the Slack request.
-3. Intent router classifies the message.
-4. Backend searches confirmed memory.
-5. Backend retrieves relevant live Slack evidence.
-6. Evidence verification checks support.
-7. LLM generates a grounded answer.
-8. AlignOS replies in Slack.
-
-### Detect a Decision
-
-1. User sends a decision-like message.
-2. Backend retrieves nearby context.
-3. MCP tool analyzes the message and context.
-4. AlignOS posts a confirmation card.
-5. User confirms, edits, or rejects.
-6. Confirmed decisions are saved to memory with evidence references.
-
-### Detect a Conflict
-
-1. User sends a new message.
-2. Backend checks related memory.
-3. Latest Slack context is retrieved if needed.
-4. Conflict detection compares the new message with confirmed memory.
-5. AlignOS posts a conflict alert when confidence is sufficient.
-6. User chooses to remind, reopen, or ignore.
-
-## API Endpoints
-
-Planned backend endpoints:
-
-- `POST /slack/events`
-- `POST /slack/interactions`
-- `POST /slack/commands`
-- `POST /agent/ask`
-- `POST /agent/detect-decision`
-- `POST /agent/detect-conflict`
-- `GET /health`
+Planned database tables: `workspaces`, `channels`, `users`, `decisions`, `tasks`,
+`blockers`, `conflicts`, `evidence_links`, `memory_items`, `audit_events`. Full
+columns, enums, and indexes in [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md).
 
 ## Security and Privacy Principles
 
@@ -283,53 +197,13 @@ Planned backend endpoints:
 - Store tokens in environment variables.
 - Use least-privilege Slack scopes.
 - Ignore bot messages to prevent loops.
-- Avoid storing full Slack history for the MVP.
-- Store memory objects and evidence references instead.
-- Respect channel permissions.
-- Do not expose private-channel evidence to unauthorized users.
+- Store memory objects and evidence references instead of full Slack history.
+- Respect channel permissions; don't expose private-channel evidence to
+  unauthorized users.
 - Support channel-level opt-out and admin-controlled memory deletion.
-
-## MVP Build Plan
-
-1. Slack bot foundation
-2. Memory database setup
-3. MCP server and core tools
-4. Real-time search and RAG evidence verification
-5. Decision confirmation cards
-6. Conflict detection
-7. Demo polish
-
-## Demo Scenario
-
-1. A team discusses PostgreSQL vs MongoDB in Slack.
-2. The team finalizes PostgreSQL for v1.
-3. AlignOS detects the decision and asks for confirmation.
-4. A user confirms the decision.
-5. Another user asks why PostgreSQL was chosen.
-6. AlignOS answers using confirmed memory and Slack evidence.
-7. A user later mentions starting MongoDB setup.
-8. AlignOS detects the conflict and posts an alert.
-
-## Success Metrics
-
-- Decisions detected
-- Decision confirmation rate
-- Conflicts detected
-- Useful answers generated
-- No-evidence refusals
-- Reduction in repeated questions
-- Decision detection precision
-- Conflict detection precision
-- Hallucination rate
-- User feedback score
-
-## Documentation
-
-The full product requirements document is available at:
-
-- `Docs/Product Requirements Document.pdf`
 
 ## Product Positioning
 
-AlignOS is a Slack-native agentic memory layer, not just a chatbot. It uses live workspace context, confirmed memory, MCP tools, and evidence verification to help teams stay aligned as decisions evolve.
-# AlignOS
+AlignOS is a Slack-native agentic memory layer, not just a chatbot. It uses live
+workspace context, confirmed memory, MCP tools, and evidence verification to help
+teams stay aligned as decisions evolve.
