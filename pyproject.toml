@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Slack-native AI agent that turns team conversations into verified team memory"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

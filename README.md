@@ -209,3 +209,7 @@ columns, enums, and indexes in [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md).
 AlignOS is a Slack-native agentic memory layer, not just a chatbot. It uses live
 workspace context, confirmed memory, MCP tools, and evidence verification to help
 teams stay aligned as decisions evolve.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Pushkal Pratap Singh.
