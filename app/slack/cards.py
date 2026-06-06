@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.security import escape_slack
+
 Blocks = list[dict[str, Any]]
 
 
@@ -28,8 +30,8 @@ def _button(text: str, action_id: str, value: str, style: str | None = None) -> 
 
 def decision_card(decision: dict[str, Any]) -> Blocks:
     """Decision confirmation card: Confirm / Edit / Reject (PRD §9.2)."""
-    title = decision.get("title", "Untitled decision")
-    reason = decision.get("reason") or "—"
+    title = escape_slack(decision.get("title", "Untitled decision"))
+    reason = escape_slack(decision.get("reason") or "—")
     confidence = decision.get("confidence", 0.0)
     value = decision.get("id", title)
     return [
@@ -49,8 +51,10 @@ def decision_card(decision: dict[str, Any]) -> Blocks:
 
 def conflict_card(detection: dict[str, Any], conflict_id: str) -> Blocks:
     """Conflict alert card: Remind / Reopen / Ignore (PRD §9.4)."""
-    explanation = detection.get("explanation", "This message may contradict confirmed memory.")
-    severity = detection.get("severity", "medium")
+    explanation = escape_slack(
+        detection.get("explanation", "This message may contradict confirmed memory.")
+    )
+    severity = escape_slack(detection.get("severity", "medium"))
     return [
         _section(":warning: *Possible conflict detected*"),
         _section(f"{explanation}\n*Severity:* {severity}"),
@@ -69,7 +73,7 @@ def conflict_card(detection: dict[str, Any], conflict_id: str) -> Blocks:
 def answer_blocks(result: dict[str, Any]) -> Blocks:
     """Render an ask-flow answer with confidence + source (PRD §14.5)."""
     if result.get("refused"):
-        blocks = [_section(f":mag: {result['answer']}")]
+        blocks = [_section(f":mag: {escape_slack(result['answer'])}")]
         blocks.append(
             {
                 "type": "actions",
@@ -83,13 +87,13 @@ def answer_blocks(result: dict[str, Any]) -> Blocks:
         )
         return blocks
     footer = f"_Confidence: {result.get('confidence')} · Source: {result.get('source')}_"
-    return [_section(result.get("answer", "")), _section(footer)]
+    return [_section(escape_slack(result.get("answer", ""))), _section(footer)]
 
 
 def summary_blocks(summary: dict[str, Any]) -> Blocks:
     """Render the project memory summary (PRD §9.5)."""
     def names(items: list[dict]) -> str:
-        return "\n".join(f"• {i.get('title', '')}" for i in items) or "_none_"
+        return "\n".join(f"• {escape_slack(i.get('title', ''))}" for i in items) or "_none_"
 
     return [
         _section(":card_index_dividers: *Project Memory*"),
