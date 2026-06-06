@@ -13,13 +13,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app import flows
 from app.config import get_settings
 from app.db import get_repository
 from app.llm import get_llm_client
+from app.security import get_agent_limiter
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
@@ -57,7 +59,7 @@ async def health() -> dict:
 # --- Slack endpoints ---
 async def _slack(req: Request):
     if _slack_handler is None:
-        return {"error": "Slack not configured"}, 503
+        return JSONResponse({"error": "Slack not configured"}, status_code=503)
     return await _slack_handler.handle(req)
 
 
@@ -77,6 +79,18 @@ async def slack_commands(req: Request):
 
 
 # --- Internal agent endpoints ---
+async def agent_guard(
+    request: Request, x_alignos_token: str | None = Header(default=None)
+) -> None:
+    """Protect /agent/* with optional shared-secret auth (V3) + rate limit (V1)."""
+    token = get_settings().agent_api_token
+    if token and x_alignos_token != token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    client_ip = request.client.host if request.client else "unknown"
+    if not get_agent_limiter().check(client_ip):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
+
 class AskRequest(BaseModel):
     question: str
     workspace_id: str
@@ -100,14 +114,14 @@ class DetectConflictRequest(BaseModel):
     recent_context: str = ""
 
 
-@api.post("/agent/ask")
+@api.post("/agent/ask", dependencies=[Depends(agent_guard)])
 async def agent_ask(body: AskRequest) -> dict:
     return await flows.answer_question(
         body.question, body.workspace_id, body.channel_id, body.evidence_messages
     )
 
 
-@api.post("/agent/detect-decision")
+@api.post("/agent/detect-decision", dependencies=[Depends(agent_guard)])
 async def agent_detect_decision(body: DetectDecisionRequest) -> dict:
     return await flows.detect_and_propose(
         body.message,
@@ -118,7 +132,7 @@ async def agent_detect_decision(body: DetectDecisionRequest) -> dict:
     )
 
 
-@api.post("/agent/detect-conflict")
+@api.post("/agent/detect-conflict", dependencies=[Depends(agent_guard)])
 async def agent_detect_conflict(body: DetectConflictRequest) -> dict:
     return await flows.check_conflict(
         body.message,

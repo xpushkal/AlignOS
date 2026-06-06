@@ -11,6 +11,7 @@ then SETUP + ROADMAP to build.
 | [MCP_TOOLS.md](MCP_TOOLS.md) | The 8 MCP tool contracts, the 3 LLM prompt JSON contracts, and no-hallucination guardrails. |
 | [API.md](API.md) | Backend HTTP endpoints, Slack mentions/commands/cards, scopes, and signature verification. |
 | [SETUP.md](SETUP.md) | Local dev setup: prerequisites, repo layout, env vars, Slack app config. |
+| [SECURITY.md](SECURITY.md) | Security review, rate limiting, prompt-injection defenses, and endpoint auth. |
 | [ROADMAP.md](ROADMAP.md) | The 7-phase build plan, MVP checklist, Final MVP definition, and demo script. |
 
 ## Suggested Reading Order

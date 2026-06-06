@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # Real-Time Search
     slack_rts_enabled: bool = False
 
+    # Security / rate limiting
+    max_input_chars: int = 4000
+    rate_limit_max_calls: int = 20
+    rate_limit_window_seconds: int = 60
+    agent_api_token: str | None = None  # if set, /agent/* requires X-AlignOS-Token
+
     @property
     def slack_configured(self) -> bool:
         return bool(self.slack_bot_token and self.slack_signing_secret)

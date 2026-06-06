@@ -24,8 +24,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         logger.error("Unknown MCP tool requested: %s", name)
         raise
     except Exception as exc:  # graceful: MCP failures must not crash the app
+        # Log details internally but return a generic error — never surface raw
+        # exception text to users (PRD §14.3).
         logger.exception("MCP tool '%s' failed: %s", name, exc)
-        return {"error": str(exc), "tool": name}
+        return {"error": "internal_tool_error", "tool": name}
 
 
 def available_tools() -> list[str]:
