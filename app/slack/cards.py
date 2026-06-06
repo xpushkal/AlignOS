@@ -5,11 +5,15 @@ without a Slack connection.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.security import escape_slack
 
 Blocks = list[dict[str, Any]]
+
+# Slack button `value` has a 2000-char limit; keep the encoded decision well under.
+_VALUE_MAX = 1900
 
 
 def _section(text: str) -> dict[str, Any]:
@@ -33,7 +37,16 @@ def decision_card(decision: dict[str, Any]) -> Blocks:
     title = escape_slack(decision.get("title", "Untitled decision"))
     reason = escape_slack(decision.get("reason") or "—")
     confidence = decision.get("confidence", 0.0)
-    value = decision.get("id", title)
+    # Encode the full decision in the button value so confirmation preserves the
+    # summary/reason/original message (decoded in handlers._decision_from_value).
+    payload = {
+        "title": decision.get("title", ""),
+        "summary": decision.get("summary", ""),
+        "reason": decision.get("reason", ""),
+        "confidence": decision.get("confidence"),
+        "original_message": (decision.get("original_message") or "")[:600],
+    }
+    value = json.dumps(payload)[:_VALUE_MAX]
     return [
         _section(":memo: *Possible decision detected*"),
         _section(f"*Decision:* {title}\n*Reason:* {reason}\n*Confidence:* {confidence}"),
