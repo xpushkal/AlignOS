@@ -100,7 +100,7 @@ The central nervous system. Owns:
 
 ### 2.5 LLM Reasoning Layer
 - Calls models through **OpenRouter** (OpenAI-compatible API); default model
-  `google/gemini-2.5-flash`, configurable via `OPENROUTER_MODEL`.
+  `openai/gpt-4o-mini`, configurable via `OPENROUTER_MODEL`.
 - Produces **structured JSON** for classification, detection, and verification.
 - Bound by the no-hallucination guardrails in [MCP_TOOLS.md](MCP_TOOLS.md) and
   PRD §19: refuse without evidence, separate "confirmed" from "discussed", prefer

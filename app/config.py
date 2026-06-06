@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # LLM (OpenRouter — OpenAI-compatible API)
     openrouter_api_key: str | None = None
-    openrouter_model: str = "google/gemini-2.5-flash"
+    openrouter_model: str = "openai/gpt-4o-mini"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     # Real-Time Search
