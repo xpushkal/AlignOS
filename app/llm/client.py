@@ -58,7 +58,12 @@ class LLMClient:
         self, message: str, thread_context: str = "", recent_channel_context: str = ""
     ) -> dict[str, Any]:
         prompt = (
-            "Classify whether the following Slack message finalizes a team decision. "
+            "Classify whether the following Slack message finalizes a TEAM decision "
+            "(a chosen direction the team is committing to, e.g. 'let's finalize X', "
+            "'we agreed on X', 'we'll go with X'). "
+            "Do NOT classify an individual stating an action or intention they will "
+            "personally take (e.g. 'I'll start X setup', 'I'm working on X') as a "
+            "decision — set is_decision false for those. "
             "Return JSON with keys: is_decision (bool), title, summary, reason, "
             "participants (list), confidence (0-1), needs_confirmation (bool).\n\n"
             f"Thread context:\n{wrap_untrusted(thread_context)}\n\n"
