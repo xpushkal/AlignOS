@@ -34,6 +34,7 @@ custom MCP server · Neon PostgreSQL · OpenRouter LLM.
 | [Docs/MCP_TOOLS.md](Docs/MCP_TOOLS.md) | The 8 MCP tools + LLM JSON contracts + guardrails |
 | [Docs/API.md](Docs/API.md) | HTTP endpoints, Slack surface, scopes, signature verification |
 | [Docs/SETUP.md](Docs/SETUP.md) | Local dev environment, env vars, Slack app config |
+| [Docs/SECURITY.md](Docs/SECURITY.md) | Security review, rate limiting, prompt-injection defenses, auth |
 | [Docs/ROADMAP.md](Docs/ROADMAP.md) | 7-phase build plan + MVP checklist + demo script |
 | [Docs/README.md](Docs/README.md) | Index of all docs |
 
