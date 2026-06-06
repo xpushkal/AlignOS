@@ -5,6 +5,7 @@ no database (DATABASE_URL) is configured. Data lives only for the process lifeti
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -69,7 +70,8 @@ class InMemoryRepository(Repository):
     def search_memory(
         self, query: str, workspace_id: str, channel_id: str | None = None
     ) -> list[Record]:
-        terms = [t for t in query.lower().split() if t]
+        # Tokenize on word chars so punctuation (e.g. "postgresql?") still matches.
+        terms = re.findall(r"[a-z0-9]+", query.lower())
         results = []
         for item in self.list_memory(workspace_id, channel_id):
             haystack = f"{item.get('title', '')} {item.get('summary', '')}".lower()

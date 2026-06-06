@@ -25,6 +25,13 @@ async def check_conflict(
     )
     relevant = search.get("memory_items", [])
     if not relevant:
+        # A contradiction often uses different words than the memory it conflicts
+        # with (e.g. "MongoDB" vs a stored "PostgreSQL" decision), so fall back to
+        # recent memory and let detect_conflict judge it (PRD §17.3 step 5).
+        from app.db import get_repository
+
+        relevant = get_repository().list_memory(workspace_id, channel_id)
+    if not relevant:
         return {"conflict": False, "detection": {"is_conflict": False}}
 
     detection = await mcp_client.call_tool(

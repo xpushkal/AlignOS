@@ -6,12 +6,13 @@ are transport-agnostic and fully testable without Slack.
 """
 from .ask import answer_question
 from .conflict import check_conflict
-from .decision import detect_and_propose
+from .decision import confirm_decision, detect_and_propose
 from .summary import project_summary
 
 __all__ = [
     "answer_question",
     "check_conflict",
+    "confirm_decision",
     "detect_and_propose",
     "project_summary",
 ]
