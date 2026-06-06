@@ -18,9 +18,15 @@ from app.intent import (
     SHOW_MEMORY,
     classify,
 )
+from app.security import get_user_limiter, sanitize_text
 from app.slack import cards
 
 logger = logging.getLogger("alignos.slack")
+
+
+def _allowed(ws: str, user: str | None) -> bool:
+    """Per-user rate-limit gate (V1). Missing user id falls back to workspace."""
+    return get_user_limiter().check(f"{ws}:{user or 'unknown'}")
 
 
 def build_bolt_app():
@@ -36,9 +42,14 @@ def build_bolt_app():
 
     @app.event("app_mention")
     async def on_mention(event, say):
-        text = event.get("text", "")
         ws = event.get("team", "")
         ch = event.get("channel")
+        user = event.get("user")
+        if not _allowed(ws, user):
+            logger.warning("Rate limit hit for mention from %s in %s", user, ws)
+            await say(text=":hourglass: You're sending requests too fast — try again shortly.")
+            return
+        text = sanitize_text(event.get("text", ""))
         intent = classify(text)
 
         if intent.name == HELP:
@@ -62,10 +73,16 @@ def build_bolt_app():
         # Ignore bot messages / edits to prevent loops (PRD §13.1).
         if event.get("bot_id") or event.get("subtype"):
             return
-        text = event.get("text", "")
         ws = event.get("team", "")
         ch = event.get("channel")
+        user = event.get("user")
         ts = event.get("ts")
+        # Passive scanning: silently drop when over the limit (no reply, to avoid
+        # amplification), but still bound the LLM/DB work it would trigger.
+        if not _allowed(ws, user):
+            logger.warning("Rate limit hit for message from %s in %s", user, ws)
+            return
+        text = sanitize_text(event.get("text", ""))
 
         # Decision detection
         proposal = await flows.detect_and_propose(text, ws, ch)
