@@ -22,7 +22,7 @@ define the spec, architecture, data model, and a phased build plan so
 implementation can begin cleanly.
 
 **Committed stack:** Python + FastAPI · `slack_sdk` / Slack Bolt for Python ·
-custom MCP server · Neon PostgreSQL · pluggable LLM provider.
+custom MCP server · Neon PostgreSQL · OpenRouter LLM.
 
 ### Documentation Map
 

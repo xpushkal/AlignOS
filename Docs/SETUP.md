@@ -2,7 +2,7 @@
 
 How to set up a local AlignOS development environment with the committed stack:
 **Python + FastAPI**, **`slack_sdk` / Slack Bolt for Python**, a **custom MCP
-server**, **Neon PostgreSQL**, and a pluggable **LLM provider**.
+server**, **Neon PostgreSQL**, and **OpenRouter** for the LLM.
 
 > **Status:** This is the intended setup for the codebase. No application code
 > exists yet — this document describes the structure to build against (see
@@ -19,7 +19,7 @@ server**, **Neon PostgreSQL**, and a pluggable **LLM provider**.
   `DATABASE_URL` connection string
 - A **Slack app** with a workspace you can install it into
 - **ngrok** (or similar) to expose your local server to Slack during development
-- An **LLM API key** (Anthropic / OpenAI / other compatible provider)
+- An **OpenRouter API key** (<https://openrouter.ai>)
 
 ---
 
@@ -63,9 +63,9 @@ SLACK_APP_TOKEN=xapp-...            # Only if using Socket Mode
 # Neon PostgreSQL
 DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/alignos?sslmode=require
 
-# LLM provider (use whichever provider you choose)
-ANTHROPIC_API_KEY=...               # or OPENAI_API_KEY=...
-LLM_MODEL=claude-opus-4-8           # default to the latest capable model
+# LLM provider (OpenRouter — OpenAI-compatible)
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=google/gemini-2.5-flash
 
 # App
 APP_ENV=development

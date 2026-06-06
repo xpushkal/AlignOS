@@ -5,7 +5,7 @@ between the Slack backend and the MCP server, the two-layer memory model, and th
 three core runtime flows.
 
 > **Committed stack:** Python + FastAPI backend, `slack_sdk` / Slack Bolt for
-> Python, a custom MCP server, Neon PostgreSQL, and a pluggable LLM provider.
+> Python, a custom MCP server, Neon PostgreSQL, and OpenRouter for the LLM.
 
 ---
 
@@ -99,8 +99,8 @@ The central nervous system. Owns:
   `log_conflict_action`.
 
 ### 2.5 LLM Reasoning Layer
-- Provider-pluggable (OpenAI / Anthropic / other). Default to the latest, most
-  capable model for the chosen provider.
+- Calls models through **OpenRouter** (OpenAI-compatible API); default model
+  `google/gemini-2.5-flash`, configurable via `OPENROUTER_MODEL`.
 - Produces **structured JSON** for classification, detection, and verification.
 - Bound by the no-hallucination guardrails in [MCP_TOOLS.md](MCP_TOOLS.md) and
   PRD §19: refuse without evidence, separate "confirmed" from "discussed", prefer

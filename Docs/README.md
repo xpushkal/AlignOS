@@ -23,4 +23,4 @@ then SETUP + ROADMAP to build.
 5. **[ROADMAP.md](ROADMAP.md)** — build it, phase by phase.
 
 **Stack:** Python + FastAPI · `slack_sdk` / Slack Bolt · custom MCP server ·
-Neon PostgreSQL · pluggable LLM provider.
+Neon PostgreSQL · OpenRouter LLM.
