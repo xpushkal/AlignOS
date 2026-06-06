@@ -113,21 +113,23 @@ def build_bolt_app():
             return
         text = sanitize_text(raw_text)
 
-        # Decision detection
-        proposal = await flows.detect_and_propose(text, ws, ch)
-        if proposal["proposed"]:
-            decision = dict(proposal["decision"])
-            decision["original_message"] = text
-            await say(blocks=cards.decision_card(decision), text="Possible decision detected")
-            return
-
-        # Conflict detection
+        # Conflict detection FIRST: a message that contradicts confirmed memory
+        # (e.g. "I'll start MongoDB setup." vs a confirmed PostgreSQL decision) is
+        # a conflict, not a new decision (PRD §17.3).
         conflict = await flows.check_conflict(text, ws, ch, message_ts=ts)
         if conflict["conflict"]:
             await say(
                 blocks=cards.conflict_card(conflict["detection"], conflict["conflict_id"]),
                 text="Possible conflict detected",
             )
+            return
+
+        # Otherwise, see if it's a new decision.
+        proposal = await flows.detect_and_propose(text, ws, ch)
+        if proposal["proposed"]:
+            decision = dict(proposal["decision"])
+            decision["original_message"] = text
+            await say(blocks=cards.decision_card(decision), text="Possible decision detected")
 
     # --- interactive buttons ---
     @app.action("decision_confirm")
