@@ -79,53 +79,38 @@ async def _compute(
     )
     memory_items = search.get("memory_items", [])
 
-    proposed = _draft_answer(memory_items)
-    verdict = await mcp_client.call_tool(
-        "verify_evidence",
+    # Generate a grounded answer from confirmed memory + live Slack evidence.
+    gen = await mcp_client.call_tool(
+        "generate_answer",
         {
-            "proposed_answer": proposed,
-            "evidence_messages": evidence_messages or [],
+            "question": question,
             "memory_items": memory_items,
+            "evidence_messages": evidence_messages or [],
         },
     )
 
-    support = verdict.get("support_level", "INSUFFICIENT_EVIDENCE")
-    safe = verdict.get("safe_to_answer", False)
-    confidence = verdict.get("final_confidence", verdict.get("confidence", 0.0))
+    support = gen.get("support_level", "INSUFFICIENT_EVIDENCE")
+    refused = gen.get("refused", support == "INSUFFICIENT_EVIDENCE")
+    confidence = gen.get("confidence", 0.0)
 
-    if not safe or support == "INSUFFICIENT_EVIDENCE":
-        result = {
-            "answer": (
-                "I could not find enough confirmed evidence to answer that. "
-                "I found discussion but no confirmed decision."
-            ),
-            "support_level": support,
-            "confidence": confidence,
-            "source": "none",
-            "refused": True,
-            "memory_items": memory_items,
-        }
+    if refused:
+        source = "none"
+    elif memory_items:
+        source = "confirmed memory"
+    elif evidence_messages:
+        source = "live Slack evidence"
     else:
-        result = {
-            "answer": proposed,
-            "support_level": support,
-            "confidence": confidence,
-            "source": "confirmed memory" if memory_items else "live discussion",
-            "refused": False,
-            "memory_items": memory_items,
-        }
+        source = "live discussion"
+
+    result = {
+        "answer": gen.get("answer", ""),
+        "support_level": support,
+        "confidence": confidence,
+        "source": source,
+        "refused": refused,
+        "memory_items": memory_items,
+    }
 
     if cache_key is not None:
         await store.cache_set(cache_key, json.dumps(result), get_settings().cache_ttl_seconds)
     return result
-
-
-def _draft_answer(memory_items: list[dict]) -> str:
-    if not memory_items:
-        return ""
-    top = memory_items[0]
-    title = top.get("title", "").strip()
-    summary = top.get("summary", "").strip()
-    if summary and summary != title:
-        return f"{title}. {summary}"
-    return title or summary

@@ -136,6 +136,39 @@ def detect_conflict(new_message: str, confirmed_memory: list[dict]) -> dict[str,
     }
 
 
+def answer(
+    question: str, memory_items: list[dict], evidence_messages: list[str]
+) -> dict[str, Any]:
+    """Offline grounded-answer fallback.
+
+    Prefers confirmed memory; treats live evidence as discussion (not a confirmed
+    decision) and refuses rather than guessing when there is no confirmed memory
+    (no-evidence refusal, PRD §9.6).
+    """
+    if memory_items:
+        top = memory_items[0]
+        title = (top.get("title") or "").strip()
+        summary = (top.get("summary") or "").strip()
+        text = f"{title}. {summary}".strip(". ").strip() or title or summary
+        return {
+            "answer": text,
+            "support_level": "SUPPORTED",
+            "confidence": 0.85,
+            "refused": False,
+        }
+    return {
+        "answer": (
+            "I could not find enough confirmed evidence to answer that. "
+            "I found discussion but no confirmed decision."
+            if evidence_messages
+            else "I could not find enough confirmed evidence to answer that."
+        ),
+        "support_level": "PARTIALLY_SUPPORTED" if evidence_messages else "INSUFFICIENT_EVIDENCE",
+        "confidence": 0.3 if evidence_messages else 0.1,
+        "refused": True,
+    }
+
+
 def _title_from(message: str) -> str:
     cleaned = re.sub(r"\s+", " ", message).strip().rstrip(".")
     words = cleaned.split(" ")

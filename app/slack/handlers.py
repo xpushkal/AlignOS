@@ -35,6 +35,12 @@ async def _duplicate(event_id: str | None) -> bool:
     return await get_store().seen(event_id)
 
 
+def _team_id(body: dict, event: dict) -> str:
+    """Workspace id. The envelope's `team_id` is canonical; `event["team"]` is a
+    fallback and may be absent on some message payloads / org installs."""
+    return body.get("team_id") or event.get("team") or ""
+
+
 def build_bolt_app():
     from slack_bolt.async_app import AsyncApp
 
@@ -47,10 +53,10 @@ def build_bolt_app():
     )
 
     @app.event("app_mention")
-    async def on_mention(event, say, body):
+    async def on_mention(event, say, body, client, context):
         if await _duplicate(body.get("event_id")):
             return
-        ws = event.get("team", "")
+        ws = _team_id(body, event)
         ch = event.get("channel")
         user = event.get("user")
         if not await _allowed(ws, user):
@@ -69,7 +75,17 @@ def build_bolt_app():
             summary = await flows.project_summary(ws, ch)
             await say(blocks=cards.summary_blocks(summary), text="Conflicts")
         elif intent.name == QUESTION_ANSWERING:
-            result = await flows.answer_question(intent.topic or text, ws, ch)
+            evidence = None
+            if settings.slack_rts_enabled:
+                from app import rts
+
+                evidence = await rts.fetch_channel_evidence(
+                    client, ch, limit=settings.rts_history_limit,
+                    exclude_user=context.bot_user_id,
+                ) or None
+            result = await flows.answer_question(
+                intent.topic or text, ws, ch, evidence_messages=evidence
+            )
             await say(blocks=cards.answer_blocks(result), text=result.get("answer", ""))
         elif intent.name == REOPEN_DECISION:
             await say(text=f"Looking for a decision about '{intent.topic}' to reopen…")
@@ -90,7 +106,7 @@ def build_bolt_app():
         if context.bot_user_id and f"<@{context.bot_user_id}>" in raw_text:
             return
 
-        ws = event.get("team", "")
+        ws = _team_id(body, event)
         ch = event.get("channel")
         user = event.get("user")
         ts = event.get("ts")

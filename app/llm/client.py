@@ -92,6 +92,27 @@ class LLMClient:
             lambda: heuristics.verify_evidence(evidence_messages, memory_items),
         )
 
+    def generate_answer(
+        self,
+        question: str,
+        memory_items: list[dict],
+        evidence_messages: list[str],
+    ) -> dict[str, Any]:
+        prompt = (
+            "Answer the user's question using ONLY the confirmed memory and Slack "
+            "evidence provided. Prefer confirmed memory. If neither supports a "
+            "confident answer, refuse rather than guess. Return JSON with keys: "
+            "answer, support_level "
+            "(SUPPORTED|PARTIALLY_SUPPORTED|CONFLICTING|INSUFFICIENT_EVIDENCE), "
+            "confidence (0-1), refused (bool).\n\n"
+            f"Question:\n{wrap_untrusted(question)}\n\n"
+            f"Confirmed memory:\n{wrap_untrusted(json.dumps(memory_items, default=str))}\n\n"
+            f"Slack evidence:\n{wrap_untrusted(json.dumps(evidence_messages, default=str))}"
+        )
+        return self._json_or_heuristic(
+            prompt, lambda: heuristics.answer(question, memory_items, evidence_messages)
+        )
+
     def detect_conflict(
         self, new_message: str, confirmed_memory: list[dict], latest_context: str = ""
     ) -> dict[str, Any]:
