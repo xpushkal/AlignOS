@@ -30,9 +30,10 @@ class Settings(BaseSettings):
     # Database (Neon PostgreSQL)
     database_url: str | None = None
 
-    # LLM
-    anthropic_api_key: str | None = None
-    llm_model: str = "claude-opus-4-8"
+    # LLM (OpenRouter — OpenAI-compatible API)
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "google/gemini-2.5-flash"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     # Real-Time Search
     slack_rts_enabled: bool = False
@@ -47,7 +48,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_configured(self) -> bool:
-        return bool(self.anthropic_api_key)
+        return bool(self.openrouter_api_key)
 
 
 @lru_cache

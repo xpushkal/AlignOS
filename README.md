@@ -22,7 +22,7 @@ define the spec, architecture, data model, and a phased build plan so
 implementation can begin cleanly.
 
 **Committed stack:** Python + FastAPI · `slack_sdk` / Slack Bolt for Python ·
-custom MCP server · Supabase PostgreSQL · pluggable LLM provider.
+custom MCP server · Neon PostgreSQL · OpenRouter LLM.
 
 ### Documentation Map
 
@@ -30,7 +30,7 @@ custom MCP server · Supabase PostgreSQL · pluggable LLM provider.
 | --- | --- |
 | [Docs/prd.md](Docs/prd.md) | Full Product Requirements Document (all 32 sections) |
 | [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md) | Components, backend↔MCP boundary, two-memory model, core flows |
-| [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md) | All 10 Supabase tables, enums, indexes |
+| [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md) | All 10 Neon Postgres tables, enums, indexes |
 | [Docs/MCP_TOOLS.md](Docs/MCP_TOOLS.md) | The 8 MCP tools + LLM JSON contracts + guardrails |
 | [Docs/API.md](Docs/API.md) | HTTP endpoints, Slack surface, scopes, signature verification |
 | [Docs/SETUP.md](Docs/SETUP.md) | Local dev environment, env vars, Slack app config |
@@ -154,7 +154,7 @@ The MVP is intended to include:
 - MCP client connected to a custom MCP server
 - Decision detection, decision saving, memory search
 - Conflict detection and evidence verification
-- Supabase PostgreSQL memory database
+- Neon PostgreSQL memory database
 - Slack confirmation and conflict-alert buttons
 - Project memory summary command
 - Evidence-backed Q&A
@@ -168,7 +168,7 @@ Slack Workspace
   -> Slack App / Agent Interface
   -> FastAPI Backend Orchestrator
   -> Intent Router
-  -> Real-Time Search API + Supabase Memory DB
+  -> Real-Time Search API + Neon Memory DB
   -> MCP Client
   -> Custom MCP Server Tools
   -> LLM Reasoning Layer

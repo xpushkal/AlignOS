@@ -1,7 +1,7 @@
 # AlignOS Roadmap & Build Plan
 
 The phased path from empty repo to a demo-ready MVP, mapped to the committed
-stack (Python/FastAPI + Supabase + MCP). Phases come from PRD §27; the MVP scope
+stack (Python/FastAPI + Neon Postgres + MCP). Phases come from PRD §27; the MVP scope
 from §10; post-MVP from §11; the acceptance target from §28 and §30.
 
 Each phase has **deliverables** and a **success check** — don't move on until the
@@ -20,10 +20,10 @@ success check passes.
 
 ---
 
-## Phase 2 — Memory Database (Supabase)
+## Phase 2 — Memory Database (Neon)
 **Deliverables**
-- Supabase project + Postgres connection wired
-- `decisions` and `evidence_links` tables (migrations in `supabase/migrations/`)
+- Neon project + Postgres connection wired (`DATABASE_URL`)
+- `decisions` and `evidence_links` tables (migrations in `migrations/`)
 - `search_memory` query function
 - `save_decision` persistence function
 
@@ -100,7 +100,7 @@ detects the conflict and posts an alert.
 - [ ] MCP client connected to custom MCP server
 - [ ] Tools: `detect_decision`, `save_decision`, `search_memory`,
       `detect_conflict`, `verify_evidence`
-- [ ] Supabase memory database
+- [ ] Neon PostgreSQL memory database
 - [ ] Decision confirmation buttons
 - [ ] Conflict alert buttons
 - [ ] Project memory summary command

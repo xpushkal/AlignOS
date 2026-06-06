@@ -769,7 +769,7 @@ Every important answer should show:
 
 ## 15. Suggested Tech Stack
 
-> **Committed choice for this project:** Python + FastAPI backend (with `slack_sdk` / Slack Bolt for Python) and Supabase PostgreSQL. The options below are preserved from the original PRD for reference.
+> **Committed choice for this project:** Python + FastAPI backend (with `slack_sdk` / Slack Bolt for Python) and Neon PostgreSQL (serverless Postgres via psycopg). The options below are preserved from the original PRD for reference.
 
 ### Frontend/User Interface
 
@@ -806,8 +806,8 @@ Alternative (**chosen**):
 
 ### Database
 
-- Supabase PostgreSQL (**chosen**)
-- Or plain PostgreSQL
+- Supabase PostgreSQL
+- Or plain PostgreSQL — **Neon** (serverless Postgres) is the **chosen** provider
 - SQLite only for local demo
 
 ### Deployment
