@@ -65,7 +65,7 @@ DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/alignos?s
 
 # LLM provider (OpenRouter — OpenAI-compatible)
 OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=google/gemini-2.5-flash
+OPENROUTER_MODEL=openai/gpt-4o-mini
 
 # App
 APP_ENV=development
