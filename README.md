@@ -16,13 +16,16 @@ previously confirmed decisions.
 
 ## Project Status
 
-This repository currently holds the **complete product and engineering
-documentation** for AlignOS. Application code has not been written yet — the docs
-define the spec, architecture, data model, and a phased build plan so
-implementation can begin cleanly.
+The MVP is **implemented and runs**: a Slack bot (Bolt) that detects decisions,
+asks for confirmation, stores them in Neon, answers questions from confirmed
+memory plus live Slack context, and flags conflicts. Run it locally via Socket
+Mode (`python -m app.socket_mode`) or as an HTTP service
+(`uvicorn app.main:api`). See [Docs/SETUP.md](Docs/SETUP.md) to get started and
+[Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) to run it in production.
 
-**Committed stack:** Python + FastAPI · `slack_sdk` / Slack Bolt for Python ·
-custom MCP server · Neon PostgreSQL · OpenRouter LLM.
+**Stack:** Python + FastAPI · Slack Bolt (`slack_sdk`) · custom MCP server ·
+Neon PostgreSQL (psycopg pool) · OpenRouter LLM · optional Redis for
+multi-instance shared state.
 
 ### Documentation Map
 
@@ -148,7 +151,7 @@ about possible pricing options, but no confirmed decision.
 
 ## MVP Scope
 
-The MVP is intended to include:
+The MVP includes:
 
 - Slack app mention support
 - Slack message event listener
@@ -189,7 +192,7 @@ events; the MCP server focuses on tools and reasoning operations. See
 
 ## Data Model
 
-Planned database tables: `workspaces`, `channels`, `users`, `decisions`, `tasks`,
+Database tables: `workspaces`, `channels`, `users`, `decisions`, `tasks`,
 `blockers`, `conflicts`, `evidence_links`, `memory_items`, `audit_events`. Full
 columns, enums, and indexes in [Docs/DATA_MODEL.md](Docs/DATA_MODEL.md).
 

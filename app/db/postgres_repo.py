@@ -51,11 +51,11 @@ class PostgresRepository(Repository):
                 """
                 insert into decisions
                     (workspace_id, channel_id, thread_ts, title, summary, reason,
-                     status, confidence)
+                     status, confidence, confirmed_by_user_id)
                 values (%(workspace_id)s, %(channel_id)s, %(thread_ts)s, %(title)s,
                         %(summary)s, %(reason)s,
                         coalesce(%(status)s,'confirmed')::decision_status,
-                        %(confidence)s)
+                        %(confidence)s, %(confirmed_by_user_id)s)
                 returning *
                 """,
                 {
@@ -67,6 +67,7 @@ class PostgresRepository(Repository):
                     "reason": decision.get("reason", ""),
                     "status": decision.get("status"),
                     "confidence": decision.get("confidence"),
+                    "confirmed_by_user_id": decision.get("confirmed_by_user_id"),
                 },
             )
             row = cur.fetchone()

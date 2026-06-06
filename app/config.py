@@ -35,8 +35,9 @@ class Settings(BaseSettings):
     openrouter_model: str = "openai/gpt-4o-mini"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
-    # Real-Time Search
+    # Real-Time Search (live Slack context via conversations.history)
     slack_rts_enabled: bool = False
+    rts_history_limit: int = 20
 
     # Security / rate limiting
     max_input_chars: int = 4000

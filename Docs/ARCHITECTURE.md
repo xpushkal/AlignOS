@@ -80,13 +80,15 @@ The central nervous system. Owns:
 - **Async processing** — acknowledges Slack within its response window, then does
   the heavy LLM/RTS/MCP work asynchronously.
 
-### 2.3 Real-Time Search (RTS) API
-- Pulls **live Slack context**: latest messages, recent decisions, thread
-  context, files, relevant channel history.
-- Used for answering questions, verifying decisions, checking conflicts, and
-  summarizing recent changes.
-- Calls are minimized and cached where appropriate. If RTS is unavailable, the
-  backend falls back to channel history in installed channels.
+### 2.3 Live Slack context (RTS)
+- Pulls **live Slack context** for the channel via `conversations.history`
+  ([app/rts/](../app/rts/)) — recent human messages used as evidence alongside
+  confirmed memory when answering questions.
+- Opt-in via `SLACK_RTS_ENABLED` (needs `channels:history` / `groups:history`).
+  Failures degrade gracefully to confirmed-memory-only.
+- Note: Slack's message-*search* API needs a user token + paid plan, so the MVP
+  uses channel history (bot token) as the live layer; swapping in `search.messages`
+  later only changes this module.
 
 ### 2.4 MCP Client (in backend) ↔ Custom MCP Server
 - The backend acts as an **MCP client**; the MCP server exposes the reasoning and

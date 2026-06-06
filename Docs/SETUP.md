@@ -4,9 +4,8 @@ How to set up a local AlignOS development environment with the committed stack:
 **Python + FastAPI**, **`slack_sdk` / Slack Bolt for Python**, a **custom MCP
 server**, **Neon PostgreSQL**, and **OpenRouter** for the LLM.
 
-> **Status:** This is the intended setup for the codebase. No application code
-> exists yet — this document describes the structure to build against (see
-> [ROADMAP.md](ROADMAP.md) for the phased plan).
+> **Status:** The MVP is implemented. This guide gets a working instance running
+> locally; see [DEPLOYMENT.md](DEPLOYMENT.md) for production / multi-instance.
 
 ---
 

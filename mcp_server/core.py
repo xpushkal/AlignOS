@@ -50,6 +50,7 @@ def save_decision(
             "reason": decision.get("reason", ""),
             "confidence": decision.get("confidence"),
             "thread_ts": decision.get("thread_ts"),
+            "confirmed_by_user_id": confirmed_by,
             "status": "confirmed",
         }
     )
@@ -83,6 +84,16 @@ def verify_evidence(
 ) -> dict[str, Any]:
     return get_llm_client().verify_evidence(
         proposed_answer, evidence_messages or [], memory_items or []
+    )
+
+
+def generate_answer(
+    question: str,
+    memory_items: list[dict] | None = None,
+    evidence_messages: list[str] | None = None,
+) -> dict[str, Any]:
+    return get_llm_client().generate_answer(
+        question, memory_items or [], evidence_messages or []
     )
 
 
@@ -154,6 +165,7 @@ DISPATCH = {
     "search_memory": search_memory,
     "detect_conflict": detect_conflict,
     "verify_evidence": verify_evidence,
+    "generate_answer": generate_answer,
     "generate_project_summary": generate_project_summary,
     "reopen_decision": reopen_decision,
     "log_conflict_action": log_conflict_action,

@@ -94,17 +94,25 @@ detects the conflict and posts an alert.
 
 ## MVP Scope Checklist (PRD §10)
 
-- [ ] Slack app mention support
-- [ ] Slack message event listener
-- [ ] Real-Time Search API retrieval
-- [ ] MCP client connected to custom MCP server
-- [ ] Tools: `detect_decision`, `save_decision`, `search_memory`,
+All items below are **implemented**.
+
+- [x] Slack app mention support
+- [x] Slack message event listener
+- [x] Real-Time Search / live Slack context retrieval (`conversations.history`,
+      opt-in via `SLACK_RTS_ENABLED`)
+- [x] MCP client connected to custom MCP server
+- [x] Tools: `detect_decision`, `save_decision`, `search_memory`,
       `detect_conflict`, `verify_evidence`
-- [ ] Neon PostgreSQL memory database
-- [ ] Decision confirmation buttons
-- [ ] Conflict alert buttons
-- [ ] Project memory summary command
-- [ ] Evidence-backed Q&A
+- [x] Neon PostgreSQL memory database
+- [x] Decision confirmation buttons
+- [x] Conflict alert buttons
+- [x] Project memory summary command
+- [x] Evidence-backed Q&A
+
+Beyond MVP, the build also adds: connection pooling, LLM pre-gating, bounded
+off-loop concurrency, Redis-backed shared state (multi-instance), a versioned
+answer cache with single-flight, rate limiting, prompt-injection hardening, and a
+load test — see [DEPLOYMENT.md](DEPLOYMENT.md) and [SECURITY.md](SECURITY.md).
 
 ---
 
