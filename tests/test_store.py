@@ -70,6 +70,33 @@ async def test_answer_cache_hit_skips_llm(monkeypatch):
     assert len(calls) == n_after_first  # cache hit: no further tool/LLM calls
 
 
+async def test_concurrent_identical_questions_coalesce(monkeypatch):
+    """A burst of identical questions should hit the LLM once (single-flight)."""
+    WS, CH = "T", "C3"
+    prop = await flows.detect_and_propose("Okay final, we'll use Postgres for v1.", WS, CH)
+    d = dict(prop["decision"]); d["original_message"] = "Okay final, we'll use Postgres for v1."
+    await flows.confirm_decision(d, WS, CH, confirmed_by="U1")
+
+    calls = []
+    from app.flows import ask as ask_flow
+
+    real = ask_flow.mcp_client.call_tool
+
+    async def spy(name, args):
+        calls.append(name)
+        await asyncio.sleep(0.05)  # widen the race window
+        return await real(name, args)
+
+    monkeypatch.setattr(ask_flow.mcp_client, "call_tool", spy)
+
+    q = "what did we decide about postgres?"
+    results = await asyncio.gather(*[flows.answer_question(q, WS, CH) for _ in range(10)])
+
+    assert all(r == results[0] for r in results)
+    # Without coalescing this would be ~20 calls (search+verify x10); with it, ~2.
+    assert len(calls) <= 2
+
+
 async def test_confirm_decision_invalidates_answer_cache():
     WS, CH = "T", "C2"
     q = "what did we decide about the database?"

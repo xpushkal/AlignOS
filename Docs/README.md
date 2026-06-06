@@ -12,6 +12,7 @@ then SETUP + ROADMAP to build.
 | [API.md](API.md) | Backend HTTP endpoints, Slack mentions/commands/cards, scopes, and signature verification. |
 | [SETUP.md](SETUP.md) | Local dev setup: prerequisites, repo layout, env vars, Slack app config. |
 | [SECURITY.md](SECURITY.md) | Security review, rate limiting, prompt-injection defenses, and endpoint auth. |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Running in production: single vs multi-instance (Redis + HTTP events + LB), tuning, load test. |
 | [ROADMAP.md](ROADMAP.md) | The 7-phase build plan, MVP checklist, Final MVP definition, and demo script. |
 
 ## Suggested Reading Order

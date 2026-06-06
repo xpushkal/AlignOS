@@ -18,6 +18,7 @@ from app.config import get_settings
 T = TypeVar("T")
 
 _semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+_inflight = 0
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -31,8 +32,18 @@ def _semaphore() -> asyncio.Semaphore:
 
 async def run_blocking(fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
     """Execute a blocking callable in a worker thread, bounded by max_concurrency."""
+    global _inflight
     async with _semaphore():
-        return await asyncio.to_thread(fn, *args, **kwargs)
+        _inflight += 1
+        try:
+            return await asyncio.to_thread(fn, *args, **kwargs)
+        finally:
+            _inflight -= 1
+
+
+def inflight() -> int:
+    """Number of blocking tasks currently executing (observability)."""
+    return _inflight
 
 
 def reset() -> None:

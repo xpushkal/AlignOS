@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app import flows
+from app import concurrency, flows
 from app.config import get_settings
 from app.db import get_repository
 from app.llm import get_llm_client
@@ -54,6 +54,8 @@ async def health() -> dict:
         "store_backend": get_store().backend,
         "slack_wired": _slack_handler is not None,
         "rts_enabled": settings.slack_rts_enabled,
+        "inflight": concurrency.inflight(),
+        "max_concurrency": settings.max_concurrency,
     }
 
 

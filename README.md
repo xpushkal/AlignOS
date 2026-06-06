@@ -35,6 +35,7 @@ custom MCP server · Neon PostgreSQL · OpenRouter LLM.
 | [Docs/API.md](Docs/API.md) | HTTP endpoints, Slack surface, scopes, signature verification |
 | [Docs/SETUP.md](Docs/SETUP.md) | Local dev environment, env vars, Slack app config |
 | [Docs/SECURITY.md](Docs/SECURITY.md) | Security review, rate limiting, prompt-injection defenses, auth |
+| [Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) | Production deploy, multi-instance scaling, tuning, load test |
 | [Docs/ROADMAP.md](Docs/ROADMAP.md) | 7-phase build plan + MVP checklist + demo script |
 | [Docs/README.md](Docs/README.md) | Index of all docs |
 
