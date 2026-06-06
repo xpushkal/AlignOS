@@ -1,6 +1,6 @@
 """LLM client returning structured JSON for the AlignOS reasoning tasks.
 
-Uses Anthropic when configured (default model from settings). When no API key is
+Uses OpenRouter (OpenAI-compatible API) when configured. When no API key is
 present it falls back to `app.llm.heuristics`, a deterministic rule-based engine
 so the whole pipeline — detection, verification, conflict, summary — works
 offline for local dev, tests, and the demo harness.
@@ -25,19 +25,22 @@ logger = logging.getLogger("alignos.llm")
 class LLMClient:
     def __init__(self) -> None:
         settings = get_settings()
-        self.model = settings.llm_model
+        self.model = settings.openrouter_model
         self._client = None
         if settings.llm_configured:
             try:
-                import anthropic  # lazy import
+                from openai import OpenAI  # lazy import
 
-                self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+                self._client = OpenAI(
+                    base_url=settings.openrouter_base_url,
+                    api_key=settings.openrouter_api_key,
+                )
             except Exception as exc:  # pragma: no cover - depends on optional dep
-                logger.warning("Anthropic client unavailable (%s); using heuristics.", exc)
+                logger.warning("OpenRouter client unavailable (%s); using heuristics.", exc)
 
     @property
     def mode(self) -> str:
-        return "anthropic" if self._client else "heuristic"
+        return "openrouter" if self._client else "heuristic"
 
     # --- public reasoning tasks ---
     def detect_decision(
@@ -92,13 +95,19 @@ class LLMClient:
         if not self._client:
             return fallback()
         try:
-            resp = self._client.messages.create(
+            resp = self._client.chat.completions.create(
                 model=self.model,
                 max_tokens=1024,
-                system="You are AlignOS. Respond ONLY with a single valid JSON object.",
-                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are AlignOS. Respond ONLY with a single valid JSON object.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
             )
-            text = resp.content[0].text.strip()
+            text = (resp.choices[0].message.content or "").strip()
             return json.loads(text)
         except Exception as exc:  # pragma: no cover - network/parse dependent
             logger.warning("LLM call failed (%s); falling back to heuristics.", exc)
