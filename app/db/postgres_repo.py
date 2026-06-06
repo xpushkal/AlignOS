@@ -9,6 +9,7 @@ Neon is serverless Postgres; this opens a short-lived connection per operation
 """
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 from typing import Any
 
@@ -42,7 +43,8 @@ class PostgresRepository(Repository):
                     (workspace_id, channel_id, thread_ts, title, summary, reason,
                      status, confidence)
                 values (%(workspace_id)s, %(channel_id)s, %(thread_ts)s, %(title)s,
-                        %(summary)s, %(reason)s, coalesce(%(status)s,'confirmed'),
+                        %(summary)s, %(reason)s,
+                        coalesce(%(status)s,'confirmed')::decision_status,
                         %(confidence)s)
                 returning *
                 """,
@@ -90,7 +92,8 @@ class PostgresRepository(Repository):
     def update_decision_status(self, decision_id: str, status: str) -> Record | None:
         with self._cursor() as cur:
             cur.execute(
-                "update decisions set status = %s, updated_at = now() where id = %s returning *",
+                "update decisions set status = %s::decision_status, updated_at = now() "
+                "where id = %s returning *",
                 (status, decision_id),
             )
             row = cur.fetchone()
@@ -110,9 +113,14 @@ class PostgresRepository(Repository):
         if channel_id is not None:
             sql += " and channel_id = %s"
             params.append(channel_id)
-        if query.strip():
-            sql += " and (title ilike %s or summary ilike %s)"
-            params += [f"%{query}%", f"%{query}%"]
+        # Tokenize and match any term against title/summary (parity with the
+        # in-memory backend) so "what did we decide about postgresql?" matches.
+        tokens = re.findall(r"[a-z0-9]+", query.lower())
+        if tokens:
+            clauses = " or ".join("(title ilike %s or summary ilike %s)" for _ in tokens)
+            sql += f" and ({clauses})"
+            for t in tokens:
+                params += [f"%{t}%", f"%{t}%"]
         sql += " order by created_at desc"
         with self._cursor() as cur:
             cur.execute(sql, params)
@@ -142,7 +150,7 @@ class PostgresRepository(Repository):
                 values (%(workspace_id)s, %(channel_id)s, %(message_ts)s,
                         %(conflict_type)s, %(severity)s, %(new_message_summary)s,
                         %(conflicting_memory_id)s, %(explanation)s,
-                        coalesce(%(status)s,'open'))
+                        coalesce(%(status)s,'open')::conflict_status)
                 returning *
                 """,
                 {
@@ -163,7 +171,7 @@ class PostgresRepository(Repository):
     def update_conflict_status(self, conflict_id: str, status: str) -> Record | None:
         with self._cursor() as cur:
             cur.execute(
-                "update conflicts set status = %s where id = %s returning *",
+                "update conflicts set status = %s::conflict_status where id = %s returning *",
                 (status, conflict_id),
             )
             row = cur.fetchone()
@@ -200,18 +208,23 @@ class PostgresRepository(Repository):
 
 
 def _norm(row: Record | None) -> Record:
-    """Stringify uuid/datetime values so results are JSON-serializable."""
+    """Convert DB values to JSON-friendly types (uuid/datetime->str, Decimal->float)."""
     if row is None:
         return {}
-    return {k: (str(v) if _needs_str(v) else v) for k, v in row.items()}
+    return {k: _conv(v) for k, v in row.items()}
 
 
 def _strip_ids(row: Record) -> Record:
-    return {k: (str(v) if _needs_str(v) else v) for k, v in row.items() if k not in ("id", "status")}
+    return {k: _conv(v) for k, v in row.items() if k not in ("id", "status")}
 
 
-def _needs_str(value: Any) -> bool:
+def _conv(value: Any) -> Any:
     import datetime
+    import decimal
     import uuid
 
-    return isinstance(value, (uuid.UUID, datetime.date, datetime.datetime))
+    if isinstance(value, (uuid.UUID, datetime.date, datetime.datetime)):
+        return str(value)
+    if isinstance(value, decimal.Decimal):
+        return float(value)
+    return value
