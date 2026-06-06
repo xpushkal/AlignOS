@@ -1,6 +1,11 @@
 -- AlignOS initial schema (Neon / PostgreSQL)
 -- Mirrors Docs/DATA_MODEL.md. Forward-only migration.
 -- Apply with: psql "$DATABASE_URL" -f migrations/0001_init.sql
+--
+-- Scoping columns (workspace_id, channel_id) and Slack user columns store Slack
+-- string IDs (e.g. "T0B8PUWB1FE", "C0123", "U0456") as TEXT — the agent always
+-- operates with Slack IDs. Internal references (a row's own id, supersedes,
+-- conflicting_memory_id, evidence.memory_item_id) are UUIDs.
 
 create extension if not exists "pgcrypto";   -- gen_random_uuid()
 create extension if not exists "pg_trgm";     -- trigram search on titles/summaries
@@ -26,7 +31,7 @@ do $$ begin
   create type blocker_status as enum ('open','resolved');
 exception when duplicate_object then null; end $$;
 
--- ---------- Core tenancy ----------
+-- ---------- Tenancy metadata (keyed by their own uuid + Slack id) ----------
 create table if not exists workspaces (
   id                   uuid primary key default gen_random_uuid(),
   slack_team_id        text unique not null,
@@ -38,30 +43,30 @@ create table if not exists workspaces (
 
 create table if not exists channels (
   id               uuid primary key default gen_random_uuid(),
-  workspace_id     uuid not null references workspaces(id) on delete cascade,
+  slack_team_id    text not null,
   slack_channel_id text not null,
   name             text,
   is_monitored     boolean not null default true,
   is_private       boolean not null default false,
   created_at       timestamptz not null default now(),
-  unique (workspace_id, slack_channel_id)
+  unique (slack_team_id, slack_channel_id)
 );
 
 create table if not exists users (
   id            uuid primary key default gen_random_uuid(),
-  workspace_id  uuid not null references workspaces(id) on delete cascade,
+  slack_team_id text not null,
   slack_user_id text not null,
   display_name  text,
   is_bot        boolean not null default false,
   created_at    timestamptz not null default now(),
-  unique (workspace_id, slack_user_id)
+  unique (slack_team_id, slack_user_id)
 );
 
 -- ---------- Memory items (unified searchable surface) ----------
 create table if not exists memory_items (
   id           uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null references workspaces(id) on delete cascade,
-  channel_id   uuid references channels(id) on delete set null,
+  workspace_id text not null,          -- Slack team id
+  channel_id   text,                   -- Slack channel id
   type         memory_item_type not null,
   title        text not null,
   summary      text,
@@ -74,15 +79,15 @@ create table if not exists memory_items (
 -- ---------- Decisions ----------
 create table if not exists decisions (
   id                     uuid primary key default gen_random_uuid(),
-  workspace_id           uuid not null references workspaces(id) on delete cascade,
-  channel_id             uuid references channels(id) on delete set null,
+  workspace_id           text not null,        -- Slack team id
+  channel_id             text,                 -- Slack channel id
   thread_ts              text,
   title                  text not null,
   summary                text,
   reason                 text,
   status                 decision_status not null default 'proposed',
   confidence             numeric,
-  confirmed_by_user_id   uuid references users(id) on delete set null,
+  confirmed_by_user_id   text,                 -- Slack user id
   supersedes_decision_id uuid references decisions(id) on delete set null,
   evidence_count         integer not null default 0,
   created_at             timestamptz not null default now(),
@@ -92,10 +97,10 @@ create table if not exists decisions (
 -- ---------- Tasks ----------
 create table if not exists tasks (
   id                  uuid primary key default gen_random_uuid(),
-  workspace_id        uuid not null references workspaces(id) on delete cascade,
-  channel_id          uuid references channels(id) on delete set null,
+  workspace_id        text not null,           -- Slack team id
+  channel_id          text,                    -- Slack channel id
   title               text not null,
-  owner_user_id       uuid references users(id) on delete set null,
+  owner_user_id       text,                    -- Slack user id
   status              task_status not null default 'open',
   due_date            date,
   evidence_message_ts text,
@@ -106,8 +111,8 @@ create table if not exists tasks (
 -- ---------- Blockers ----------
 create table if not exists blockers (
   id                  uuid primary key default gen_random_uuid(),
-  workspace_id        uuid not null references workspaces(id) on delete cascade,
-  channel_id          uuid references channels(id) on delete set null,
+  workspace_id        text not null,           -- Slack team id
+  channel_id          text,                    -- Slack channel id
   title               text not null,
   description         text,
   status              blocker_status not null default 'open',
@@ -119,8 +124,8 @@ create table if not exists blockers (
 -- ---------- Conflicts ----------
 create table if not exists conflicts (
   id                    uuid primary key default gen_random_uuid(),
-  workspace_id          uuid not null references workspaces(id) on delete cascade,
-  channel_id            uuid references channels(id) on delete set null,
+  workspace_id          text not null,         -- Slack team id
+  channel_id            text,                  -- Slack channel id
   message_ts            text,
   conflict_type         text,
   severity              text,
@@ -147,9 +152,9 @@ create table if not exists evidence_links (
 -- ---------- Audit events ----------
 create table if not exists audit_events (
   id            uuid primary key default gen_random_uuid(),
-  workspace_id  uuid not null references workspaces(id) on delete cascade,
-  channel_id    uuid references channels(id) on delete set null,
-  actor_user_id uuid references users(id) on delete set null,
+  workspace_id  text not null,                 -- Slack team id
+  channel_id    text,                          -- Slack channel id
+  actor_user_id text,                          -- Slack user id
   event_type    text not null,
   target_id     uuid,
   metadata      jsonb,

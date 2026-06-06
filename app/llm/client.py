@@ -79,8 +79,8 @@ class LLMClient:
             "confidence (0-1), contradictions (list), missing_evidence (list), "
             "safe_to_answer (bool).\n\n"
             f"Proposed answer:\n{wrap_untrusted(proposed_answer)}\n\n"
-            f"Evidence:\n{wrap_untrusted(json.dumps(evidence_messages))}\n\n"
-            f"Memory:\n{wrap_untrusted(json.dumps(memory_items))}"
+            f"Evidence:\n{wrap_untrusted(json.dumps(evidence_messages, default=str))}\n\n"
+            f"Memory:\n{wrap_untrusted(json.dumps(memory_items, default=str))}"
         )
         return self._json_or_heuristic(
             prompt,
@@ -95,7 +95,7 @@ class LLMClient:
             "Return JSON with keys: is_conflict (bool), conflict_type, severity "
             "(low|medium|high), explanation, recommended_action.\n\n"
             f"New message:\n{wrap_untrusted(new_message)}\n\n"
-            f"Confirmed memory:\n{wrap_untrusted(json.dumps(confirmed_memory))}\n\n"
+            f"Confirmed memory:\n{wrap_untrusted(json.dumps(confirmed_memory, default=str))}\n\n"
             f"Latest context:\n{wrap_untrusted(latest_context)}"
         )
         return self._json_or_heuristic(

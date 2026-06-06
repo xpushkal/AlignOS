@@ -10,9 +10,13 @@ indexes.
 > but does not fully specify (`workspaces`, `channels`, `users`, `blockers`,
 > `audit_events`); ratify these during implementation.
 
-> **Convention:** all `id` columns are `uuid` (default `gen_random_uuid()`);
-> all `*_at` columns are `timestamptz`; Slack identifiers (`slack_*_id`,
-> `*_ts`) are `text` because Slack message timestamps (`ts`) are string values.
+> **Convention:** a row's own `id` is `uuid` (default `gen_random_uuid()`);
+> all `*_at` columns are `timestamptz`. **Scoping and Slack-actor columns
+> (`workspace_id`, `channel_id`, `confirmed_by_user_id`, `owner_user_id`,
+> `actor_user_id`) are `text` holding Slack string IDs** (e.g. `T0B8PUWB1FE`,
+> `C0123`, `U0456`) — the agent always operates with Slack IDs, not internal
+> UUIDs. Cross-row references to our own rows (`supersedes_decision_id`,
+> `conflicting_memory_id`, `evidence_links.memory_item_id`) are `uuid`.
 
 ---
 
@@ -63,7 +67,7 @@ Channels the bot monitors; supports channel-level opt-out (PRD §14.4).
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
+| `workspace_id` | text | Slack team id (scope) |
 | `slack_channel_id` | text | Slack channel ID |
 | `name` | text | Channel name |
 | `is_monitored` | boolean | Opt-out flag (default `true`) |
@@ -76,7 +80,7 @@ Slack users referenced by decisions, tasks, and evidence.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
+| `workspace_id` | text | Slack team id (scope) |
 | `slack_user_id` | text | Slack user ID |
 | `display_name` | text | |
 | `is_bot` | boolean | Used to ignore bot messages (loop prevention) |
@@ -87,15 +91,15 @@ Slack users referenced by decisions, tasks, and evidence.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id` |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
 | `thread_ts` | text | Slack thread timestamp |
 | `title` | text | Short decision title |
 | `summary` | text | What was decided |
 | `reason` | text | Why it was decided |
 | `status` | `decision_status` | See enums |
 | `confidence` | numeric | 0–1 detection/verification confidence |
-| `confirmed_by_user_id` | uuid | FK → `users.id`, nullable until confirmed |
+| `confirmed_by_user_id` | text | Slack user id, nullable until confirmed |
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
 | `supersedes_decision_id` | uuid | FK → `decisions.id`, nullable (decision chaining) |
@@ -106,10 +110,10 @@ Slack users referenced by decisions, tasks, and evidence.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id` |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
 | `title` | text | |
-| `owner_user_id` | uuid | FK → `users.id`, nullable |
+| `owner_user_id` | text | Slack user id, nullable |
 | `status` | `task_status` (proposed) | |
 | `due_date` | date | nullable |
 | `evidence_message_ts` | text | Source Slack message `ts` |
@@ -121,8 +125,8 @@ Slack users referenced by decisions, tasks, and evidence.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id` |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
 | `title` | text | |
 | `description` | text | |
 | `status` | `blocker_status` (proposed) | |
@@ -135,8 +139,8 @@ Slack users referenced by decisions, tasks, and evidence.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id` |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
 | `message_ts` | text | Slack `ts` of the conflicting message |
 | `conflict_type` | text | e.g. `technology_choice` |
 | `severity` | text | `low` / `medium` / `high` |
@@ -170,8 +174,8 @@ searchable surface and is the target of `evidence_links`.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id` |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
 | `type` | `memory_item_type` | See enums |
 | `title` | text | |
 | `summary` | text | |
@@ -187,9 +191,9 @@ Lightweight action log (confirmations, ignores, reopenings) — supports
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | PK |
-| `workspace_id` | uuid | FK → `workspaces.id` |
-| `channel_id` | uuid | FK → `channels.id`, nullable |
-| `actor_user_id` | uuid | FK → `users.id`, nullable |
+| `workspace_id` | text | Slack team id (scope) |
+| `channel_id` | text | Slack channel id (scope), nullable |
+| `actor_user_id` | text | Slack user id, nullable |
 | `event_type` | text | e.g. `decision_confirmed`, `conflict_ignored`, `decision_reopened` |
 | `target_id` | uuid | ID of the affected decision/conflict/memory item |
 | `metadata` | jsonb | Free-form context |
