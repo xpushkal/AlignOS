@@ -30,6 +30,7 @@ logger = logging.getLogger("alignos")
 api = FastAPI(title="AlignOS", version="0.1.0")
 
 # --- Slack wiring (only when configured) ---
+_slack_app = None
 _slack_handler = None
 if settings.slack_configured:
     try:
@@ -37,12 +38,33 @@ if settings.slack_configured:
 
         from app.slack.handlers import build_bolt_app
 
-        _slack_handler = AsyncSlackRequestHandler(build_bolt_app())
+        _slack_app = build_bolt_app()
+        _slack_handler = AsyncSlackRequestHandler(_slack_app)
         logger.info("Slack Bolt app wired.")
     except Exception as exc:  # pragma: no cover - optional dependency/runtime
         logger.warning("Slack not wired (%s).", exc)
 else:
     logger.info("Slack not configured; /slack/* endpoints return 503.")
+
+
+@api.on_event("startup")
+async def start_reminder_worker():
+    if _slack_app is not None:
+        import asyncio
+        from app.flows.reminder import check_reminders_and_send
+        
+        async def reminder_worker_loop():
+            await asyncio.sleep(5)
+            while True:
+                try:
+                    await check_reminders_and_send(_slack_app.client)
+                except Exception as exc:
+                    logger.error("Reminder background worker error: %s", exc)
+                await asyncio.sleep(30)
+                
+        asyncio.create_task(reminder_worker_loop())
+        logger.info("Reminder background worker task started.")
+
 
 
 @api.get("/health")

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     rate_limit_max_calls: int = 20
     rate_limit_window_seconds: int = 60
     agent_api_token: str | None = None  # if set, /agent/* requires X-AlignOS-Token
+    admin_user_ids: str | None = None   # comma-separated list of Slack User IDs allowed to perform cleanup
+
 
     # Concurrency / scale
     max_concurrency: int = 8       # max blocking (DB/LLM) tasks running at once

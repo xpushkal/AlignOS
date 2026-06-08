@@ -21,7 +21,13 @@ TOOL_NAMES = [
     "generate_project_summary",
     "reopen_decision",
     "log_conflict_action",
+    "get_decision_timeline",
+    "get_cleanup_suggestions",
+    "execute_cleanup_action",
+    "generate_prd_suggestions",
+    "get_project_health",
 ]
+
 
 
 def detect_decision(
@@ -158,6 +164,223 @@ def log_conflict_action(
     return {"conflict_id": row["id"], "status": row["status"]}
 
 
+def get_decision_timeline(
+    workspace_id: str, channel_id: str | None = None
+) -> dict[str, Any]:
+    repo = get_repository()
+    decisions = repo.list_decisions(workspace_id, channel_id)
+    confirmed = [d for d in decisions if d.get("status") == "confirmed"]
+    # Attach evidence if any exists
+    for dec in confirmed:
+        dec["evidence"] = repo.get_evidence(dec["id"])
+    return {"timeline": confirmed}
+
+
+def get_cleanup_suggestions(
+    workspace_id: str, channel_id: str | None = None
+) -> dict[str, Any]:
+    repo = get_repository()
+    items = repo.list_memory(workspace_id, channel_id)
+    decisions = repo.list_decisions(workspace_id, channel_id)
+    
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    
+    stale_decisions = []
+    for dec in decisions:
+        if dec.get("status") == "confirmed":
+            created_at_str = dec.get("created_at")
+            if created_at_str:
+                try:
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    else:
+                        created_at = created_at_str
+                    if (now - created_at).days > 30:
+                        stale_decisions.append(dec)
+                except Exception:
+                    pass
+
+    # Duplicate tasks
+    tasks = [item for item in items if item.get("type") == "task"]
+    duplicate_tasks = []
+    grouped_tasks: dict[str, list[dict]] = {}
+    for task in tasks:
+        norm_title = "".join(c for c in task.get("title", "").lower() if c.isalnum())
+        grouped_tasks.setdefault(norm_title, []).append(task)
+    for t_list in grouped_tasks.values():
+        if len(t_list) > 1:
+            duplicate_tasks.append(t_list)
+
+    # Outdated/superseded decisions
+    outdated_decisions = [dec for dec in decisions if dec.get("status") in ("superseded", "reopened")]
+
+    # Completed tasks older than 14 days
+    completed_tasks = []
+    for item in items:
+        if item.get("type") == "task" and item.get("status") == "done":
+            updated_str = item.get("updated_at")
+            if updated_str:
+                try:
+                    if isinstance(updated_str, str):
+                        updated_at = datetime.datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
+                    else:
+                        updated_at = updated_str
+                    if (now - updated_at).days > 14:
+                        completed_tasks.append(item)
+                except Exception:
+                    pass
+
+    # Low confidence or rejected memory items
+    low_confidence = []
+    for item in items:
+        conf = item.get("confidence")
+        if conf is not None:
+            try:
+                if float(conf) < 0.5:
+                    low_confidence.append(item)
+            except Exception:
+                pass
+        if item.get("status") == "rejected":
+            low_confidence.append(item)
+
+    return {
+        "stale_decisions": stale_decisions,
+        "duplicate_tasks": duplicate_tasks,
+        "outdated_decisions": outdated_decisions,
+        "completed_tasks": completed_tasks,
+        "low_confidence": low_confidence,
+    }
+
+
+def execute_cleanup_action(
+    action: str, item_id: str, target_id: str | None = None
+) -> dict[str, Any]:
+    repo = get_repository()
+    result = repo.execute_cleanup_action(action, item_id, target_id)
+    return {"status": "success", "result": result}
+
+
+def generate_prd_suggestions(decision_id: str, workspace_id: str) -> dict[str, Any]:
+    repo = get_repository()
+    decision = repo.get_decision(decision_id)
+    if not decision:
+        return {"suggestions": []}
+
+    title = decision.get("title", "")
+    summary = decision.get("summary", "")
+    reason = decision.get("reason", "")
+
+    client = get_llm_client()
+    if client.mode == "openrouter":
+        prompt = (
+            "Analyze the following team decision and generate suggested PRD (Product Requirements Document) "
+            "changes. Propose standard sections (e.g. Scope, Features, Roadmap, Security) to update, "
+            "the precise requirement text to add, matching acceptance criteria, and the rationale. "
+            "Return JSON with a single key 'suggestions' which is a list of objects, each containing: "
+            "section_to_update (str), proposed_requirement_text (str), acceptance_criteria (list of str), reason_for_update (str).\n\n"
+            f"Decision Title: {title}\n"
+            f"Decision Summary: {summary}\n"
+            f"Decision Reason: {reason}"
+        )
+        try:
+            res = client._json_or_heuristic(prompt, lambda: {"suggestions": []})
+            if "suggestions" in res:
+                return res
+        except Exception:
+            pass
+
+    return {
+        "suggestions": [
+            {
+                "section_to_update": "Features / Functional Requirements",
+                "proposed_requirement_text": f"The system shall support: {title}.",
+                "acceptance_criteria": [
+                    f"Validate that {title} functions correctly in all environments.",
+                    "Verify corresponding database models are updated.",
+                ],
+                "reason_for_update": f"Agreed by team: {reason or summary or 'For project development alignment'}.",
+            }
+        ]
+    }
+
+
+def get_project_health(
+    workspace_id: str, channel_id: str | None = None
+) -> dict[str, Any]:
+    repo = get_repository()
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    
+    tasks = repo.list_tasks(workspace_id, channel_id)
+    blockers = repo.list_blockers(workspace_id, channel_id)
+    decisions = repo.list_decisions(workspace_id, channel_id)
+    conflicts = repo.list_conflicts(workspace_id, channel_id)
+    
+    open_tasks = [t for t in tasks if t.get("status") not in ("done", "cancelled", "archived")]
+    blocked_tasks = [t for t in open_tasks if t.get("id") in [b.get("task_id") for b in blockers if b.get("status") == "open"]]
+    open_blockers = [b for b in blockers if b.get("status") == "open"]
+    unresolved_conflicts = [c for c in conflicts if c.get("status") in ("open", "reopened_decision")]
+    
+    stale_decisions = []
+    recent_confirmed_decisions = []
+    
+    for dec in decisions:
+        if dec.get("status") == "confirmed":
+            created_at_str = dec.get("created_at")
+            if created_at_str:
+                try:
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    else:
+                        created_at = created_at_str
+                    delta_days = (now - created_at).days
+                    if delta_days > 30:
+                        stale_decisions.append(dec)
+                    if delta_days <= 7:
+                        recent_confirmed_decisions.append(dec)
+                except Exception:
+                    pass
+                    
+    overdue_deadlines = []
+    for t in tasks:
+        if t.get("status") not in ("done", "cancelled", "archived"):
+            due = t.get("due_date")
+            if due:
+                try:
+                    if isinstance(due, str):
+                        due_date = datetime.datetime.strptime(due, "%Y-%m-%d").date()
+                    else:
+                        due_date = due
+                    if due_date < now.date():
+                        overdue_deadlines.append(t)
+                except Exception:
+                    pass
+
+    if unresolved_conflicts or overdue_deadlines or len(open_blockers) > 0:
+        health_status = "Red"
+    elif len(blocked_tasks) > 0 or len(stale_decisions) > 0 or len(open_tasks) > 5:
+        health_status = "Yellow"
+    else:
+        health_status = "Green"
+        
+    return {
+        "open_tasks_count": len(open_tasks),
+        "blocked_tasks_count": len(blocked_tasks),
+        "open_blockers_count": len(open_blockers),
+        "unresolved_conflicts_count": len(unresolved_conflicts),
+        "stale_decisions_count": len(stale_decisions),
+        "recent_decisions_count": len(recent_confirmed_decisions),
+        "overdue_deadlines_count": len(overdue_deadlines),
+        "health_status": health_status,
+        "stale_decisions": stale_decisions,
+        "recent_confirmed_decisions": recent_confirmed_decisions,
+        "open_blockers": open_blockers,
+        "unresolved_conflicts": unresolved_conflicts,
+        "overdue_deadlines": overdue_deadlines,
+    }
+
+
 # Dispatch table used by both the MCP server and the local fallback client.
 DISPATCH = {
     "detect_decision": detect_decision,
@@ -169,6 +392,11 @@ DISPATCH = {
     "generate_project_summary": generate_project_summary,
     "reopen_decision": reopen_decision,
     "log_conflict_action": log_conflict_action,
+    "get_decision_timeline": get_decision_timeline,
+    "get_cleanup_suggestions": get_cleanup_suggestions,
+    "execute_cleanup_action": execute_cleanup_action,
+    "generate_prd_suggestions": generate_prd_suggestions,
+    "get_project_health": get_project_health,
 }
 
 
@@ -176,3 +404,4 @@ def call(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if name not in DISPATCH:
         raise KeyError(f"Unknown tool: {name}")
     return DISPATCH[name](**arguments)
+

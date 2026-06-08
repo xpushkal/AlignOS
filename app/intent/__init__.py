@@ -17,6 +17,10 @@ SAVE_TASK = "save_task"
 SUMMARIZE_THREAD = "summarize_thread"
 SHOW_CONFLICTS = "show_conflicts"
 REOPEN_DECISION = "reopen_decision"
+SHOW_TIMELINE = "show_timeline"
+MEETING_TO_EXECUTION = "meeting_to_execution"
+CLEANUP_SUGGESTIONS = "cleanup_suggestions"
+SHOW_HEALTH = "show_health"
 HELP = "help"
 UNKNOWN = "unknown"
 
@@ -49,6 +53,18 @@ def classify(text: str) -> Intent:
     if "show conflicts" in low or low in {"conflicts", "/alignos conflicts"}:
         return Intent(SHOW_CONFLICTS, 0.9)
 
+    if "timeline" in low:
+        return Intent(SHOW_TIMELINE, 0.9)
+
+    if "execution plan" in low or "summarize this thread" in low or "turn this discussion" in low:
+        return Intent(MEETING_TO_EXECUTION, 0.9)
+
+    if "cleanup" in low:
+        return Intent(CLEANUP_SUGGESTIONS, 0.9)
+
+    if "health" in low:
+        return Intent(SHOW_HEALTH, 0.9)
+
     if low.startswith("reopen") or "reopen" in low and "decision" in low:
         return Intent(REOPEN_DECISION, 0.85, topic=_topic_after(low, "reopen"))
 
@@ -60,6 +76,7 @@ def classify(text: str) -> Intent:
         return Intent(QUESTION_ANSWERING, 0.8, topic=cleaned)
 
     return Intent(UNKNOWN, 0.3, topic=cleaned)
+
 
 
 def _topic_after(text: str, keyword: str) -> str:

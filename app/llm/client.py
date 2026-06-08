@@ -118,8 +118,13 @@ class LLMClient:
     ) -> dict[str, Any]:
         prompt = (
             "Decide whether the new Slack message contradicts confirmed memory. "
+            "Classify the conflict severity into one of these levels:\n"
+            "- low: wording mismatch or weak possible conflict\n"
+            "- medium: unclear contradiction\n"
+            "- high: direct contradiction with a confirmed decision\n"
+            "- critical: contradiction affecting security, deadline, architecture, deployment, or major product direction\n\n"
             "Return JSON with keys: is_conflict (bool), conflict_type, severity "
-            "(low|medium|high), explanation, recommended_action.\n\n"
+            "(low|medium|high|critical), explanation, recommended_action, conflicting_memory_id.\n\n"
             f"New message:\n{wrap_untrusted(new_message)}\n\n"
             f"Confirmed memory:\n{wrap_untrusted(json.dumps(confirmed_memory, default=str))}\n\n"
             f"Latest context:\n{wrap_untrusted(latest_context)}"
@@ -127,6 +132,44 @@ class LLMClient:
         return self._json_or_heuristic(
             prompt, lambda: heuristics.detect_conflict(new_message, confirmed_memory)
         )
+
+    def extract_meeting_execution(self, discussion_text: str) -> dict[str, Any]:
+        import datetime
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        prompt = (
+            "Analyze the following discussion/thread and extract a structured execution plan. "
+            f"The current date is: {now_str}.\n"
+            "Return JSON with keys:\n"
+            "- summary: a brief overview of the discussion\n"
+            "- decisions: a list of objects, each with 'title' and 'reason'\n"
+            "- action_items: a list of objects, each with 'title', 'owner' (Slack username or raw user ID), 'deadline' (YYYY-MM-DD or null)\n"
+            "- blockers: a list of objects, each with 'title' and 'description'\n"
+            "- deadlines: a list of objects, each with 'task_title' and 'due_date' (YYYY-MM-DD or null)\n"
+            "- next_steps: a list of strings outlining next immediate steps\n\n"
+            f"Discussion Text:\n{wrap_untrusted(discussion_text)}"
+        )
+        return self._json_or_heuristic(
+            prompt, lambda: heuristics.extract_meeting_execution(discussion_text)
+        )
+
+    def extract_reminder(self, message: str) -> dict[str, Any]:
+        import datetime
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        prompt = (
+            "Extract any task deadline reminders from the following message. "
+            f"The current date and time is: {now_str}.\n"
+            "Return JSON with keys:\n"
+            "- has_reminder (bool): true if a task, owner, and deadline are found\n"
+            "- task_title (str): title of the task\n"
+            "- owner_slack_id (str): the owner (Slack username or user ID like <@U123456> or raw ID)\n"
+            "- deadline (str): date formatted as YYYY-MM-DD or null\n"
+            "- remind_at (str): ISO timestamp when to send reminder or null (calculate this relative to the current time, e.g. a few hours/days before the deadline or a default delay of 10 seconds if unspecified)\n\n"
+            f"Message:\n{wrap_untrusted(message)}"
+        )
+        return self._json_or_heuristic(
+            prompt, lambda: heuristics.extract_reminder(message)
+        )
+
 
     # --- internals ---
     def _json_or_heuristic(self, prompt: str, fallback) -> dict[str, Any]:

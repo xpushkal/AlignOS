@@ -71,7 +71,33 @@ def build_server():
         """Record the user's choice on a conflict alert (remind/reopen/ignore)."""
         return json.dumps(core.log_conflict_action(conflict_id, action, actor_user_id or None))
 
+    @server.tool()
+    def get_decision_timeline(workspace_id: str, channel_id: str = "") -> str:
+        """Fetch confirmed decisions in timeline format."""
+        return json.dumps(core.get_decision_timeline(workspace_id, channel_id or None))
+
+    @server.tool()
+    def get_cleanup_suggestions(workspace_id: str, channel_id: str = "") -> str:
+        """Fetch suggestions for database memory cleanup."""
+        return json.dumps(core.get_cleanup_suggestions(workspace_id, channel_id or None))
+
+    @server.tool()
+    def execute_cleanup_action(action: str, item_id: str, target_id: str = "") -> str:
+        """Execute cleanup suggestions (delete/archive/supersede/merge)."""
+        return json.dumps(core.execute_cleanup_action(action, item_id, target_id or None))
+
+    @server.tool()
+    def generate_prd_suggestions(decision_id: str, workspace_id: str) -> str:
+        """Analyze a decision and propose changes to the PRD."""
+        return json.dumps(core.generate_prd_suggestions(decision_id, workspace_id))
+
+    @server.tool()
+    def get_project_health(workspace_id: str, channel_id: str = "") -> str:
+        """Perform a metrics scan on project items to calculate health."""
+        return json.dumps(core.get_project_health(workspace_id, channel_id or None))
+
     return server
+
 
 
 def main() -> None:

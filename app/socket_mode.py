@@ -35,6 +35,22 @@ async def _run() -> None:
         get_repository().backend,
         get_llm_client().mode,
     )
+
+    # Start reminder worker background loop
+    from app.flows.reminder import check_reminders_and_send
+    
+    async def reminder_worker_loop():
+        await asyncio.sleep(5)
+        while True:
+            try:
+                await check_reminders_and_send(app.client)
+            except Exception as exc:
+                logger.error("Reminder background worker error: %s", exc)
+            await asyncio.sleep(30)
+            
+    asyncio.create_task(reminder_worker_loop())
+    logger.info("Reminder background worker task started.")
+
     await handler.start_async()
 
 

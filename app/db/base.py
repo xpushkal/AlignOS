@@ -23,6 +23,19 @@ class Repository(Protocol):
         """Set a decision's status (e.g. 'reopened', 'superseded')."""
         ...
 
+    def list_tasks(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        """All task records for a workspace/channel."""
+        ...
+
+    def list_blockers(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        """All blocker records for a workspace/channel."""
+        ...
+
+
     # --- memory search ---
     def search_memory(
         self, query: str, workspace_id: str, channel_id: str | None = None
@@ -36,6 +49,49 @@ class Repository(Protocol):
         """All memory items for a workspace/channel (for summaries)."""
         ...
 
+    def list_decisions(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        """All decision records for a workspace/channel."""
+        ...
+
+    # --- tasks & blockers ---
+    def save_task(self, task: Record) -> Record:
+        """Persist a task (status 'open' by default) and return the row."""
+        ...
+
+    def update_task_status(self, task_id: str, status: str) -> Record | None:
+        """Set a task's status."""
+        ...
+
+    def save_blocker(self, blocker: Record) -> Record:
+        """Persist a blocker (status 'open' by default) and return the row."""
+        ...
+
+    def update_blocker_status(self, blocker_id: str, status: str) -> Record | None:
+        """Set a blocker's status."""
+        ...
+
+    # --- reminders ---
+    def save_reminder(self, reminder: Record) -> Record:
+        """Schedule a personal deadline reminder."""
+        ...
+
+    def get_pending_reminders(self) -> list[Record]:
+        """Fetch all reminders in 'scheduled' status that are due."""
+        ...
+
+    def update_reminder_status(self, reminder_id: str, status: str) -> Record | None:
+        """Update a reminder's status."""
+        ...
+
+    # --- cleanup actions ---
+    def execute_cleanup_action(
+        self, action: str, item_id: str, target_id: str | None = None
+    ) -> Record | None:
+        """Execute a cleanup action (delete, archive, supersede, merge, ignore)."""
+        ...
+
     # --- conflicts ---
     def save_conflict(self, conflict: Record) -> Record: ...
 
@@ -45,3 +101,16 @@ class Repository(Protocol):
     def add_evidence(self, memory_item_id: str, links: list[Record]) -> int:
         """Attach evidence links to a memory item; return count added."""
         ...
+
+    def get_evidence(self, memory_item_id: str) -> list[Record]:
+        """Fetch all evidence links for a memory item."""
+        ...
+
+    def list_conflicts(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        """All conflict records for a workspace/channel."""
+        ...
+
+
+

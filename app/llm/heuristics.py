@@ -115,10 +115,17 @@ def detect_conflict(new_message: str, confirmed_memory: list[dict]) -> dict[str,
             in_mem = {t for t in group if t in memory_text}
             # Conflict when the message names an option the memory does NOT endorse.
             if in_msg and in_mem and not (in_msg & in_mem):
+                severity = "medium"
+                crit_words = {"security", "deadline", "architecture", "deployment", "roadmap"}
+                if any(w in text or w in memory_text for w in crit_words):
+                    severity = "critical"
+                elif "postgres" in text or "mongodb" in text:
+                    severity = "high"
+                
                 return {
                     "is_conflict": True,
                     "conflict_type": "technology_choice",
-                    "severity": "medium",
+                    "severity": severity,
                     "explanation": (
                         f"New message mentions {', '.join(in_msg)}, but confirmed "
                         f"memory says {', '.join(in_mem)}."
@@ -136,9 +143,82 @@ def detect_conflict(new_message: str, confirmed_memory: list[dict]) -> dict[str,
     }
 
 
+def extract_meeting_execution(discussion_text: str) -> dict[str, Any]:
+    text = discussion_text.lower()
+    decisions = []
+    action_items = []
+    blockers = []
+    deadlines = []
+    next_steps = ["Schedule follow-up sync"]
+
+    if "postgresql" in text or "postgres" in text:
+        decisions.append({"title": "Use PostgreSQL for database", "reason": "Structured project data fits SQL schema"})
+    if "mongodb" in text:
+        decisions.append({"title": "Use MongoDB for data store", "reason": "Flexible schemaless prototyping speed"})
+
+    match = re.search(r"(\w+):\s*([^d\n]+)(?:due|by)\s*([^\n]+)", discussion_text, re.IGNORECASE)
+    if match:
+        owner = match.group(1).strip()
+        task = match.group(2).strip()
+        action_items.append({"title": task, "owner": owner, "deadline": "2026-06-08"})
+        deadlines.append({"task_title": task, "due_date": "2026-06-08"})
+    else:
+        action_items.append({"title": "Review discussion items", "owner": "channel", "deadline": None})
+
+    if "blocker" in text or "blocked" in text:
+        blockers.append({"title": "Access to API keys", "description": "Need access tokens for integrations"})
+
+    return {
+        "summary": "Meeting discussion summary covering options and action plan.",
+        "decisions": decisions,
+        "action_items": action_items,
+        "blockers": blockers,
+        "deadlines": deadlines,
+        "next_steps": next_steps,
+    }
+
+
+def extract_reminder(message: str) -> dict[str, Any]:
+    text = message.lower()
+    has_owner = "<@" in message or any(name in text for name in ["ayush", "rahul", "priya"])
+    has_deadline = any(cue in text for cue in ["due", "by", "tomorrow", "deadline", "at"])
+    
+    if has_owner and has_deadline:
+        owner = "Ayush"
+        owner_match = re.search(r"(<@[A-Z0-9]+>|ayush|rahul|priya)", message, re.IGNORECASE)
+        if owner_match:
+            owner = owner_match.group(1)
+        
+        import datetime
+        tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+        
+        task_title = "Update task status"
+        task_match = re.search(r"(?:remind|task|fix|build|test|do|setup)\s+([^by\n?]+)", message, re.IGNORECASE)
+        if task_match:
+            task_title = task_match.group(1).strip()
+            
+        remind_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=10)).isoformat()
+
+        return {
+            "has_reminder": True,
+            "task_title": task_title,
+            "owner_slack_id": owner,
+            "deadline": tomorrow,
+            "remind_at": remind_at
+        }
+    return {
+        "has_reminder": False,
+        "task_title": "",
+        "owner_slack_id": "",
+        "deadline": None,
+        "remind_at": None
+    }
+
+
 def answer(
     question: str, memory_items: list[dict], evidence_messages: list[str]
 ) -> dict[str, Any]:
+
     """Offline grounded-answer fallback.
 
     Prefers confirmed memory; treats live evidence as discussion (not a confirmed

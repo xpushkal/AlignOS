@@ -119,20 +119,25 @@ class PostgresRepository(Repository):
     def search_memory(
         self, query: str, workspace_id: str, channel_id: str | None = None
     ) -> list[Record]:
-        sql = "select * from memory_items where workspace_id = %s"
+        sql = """
+            select m.*, d.reason 
+            from memory_items m 
+            left join decisions d on m.id = d.id 
+            where m.workspace_id = %s
+        """
         params: list[Any] = [workspace_id]
         if channel_id is not None:
-            sql += " and channel_id = %s"
+            sql += " and m.channel_id = %s"
             params.append(channel_id)
         # Tokenize and match any term against title/summary (parity with the
         # in-memory backend) so "what did we decide about postgresql?" matches.
         tokens = re.findall(r"[a-z0-9]+", query.lower())
         if tokens:
-            clauses = " or ".join("(title ilike %s or summary ilike %s)" for _ in tokens)
+            clauses = " or ".join("(m.title ilike %s or m.summary ilike %s)" for _ in tokens)
             sql += f" and ({clauses})"
             for t in tokens:
                 params += [f"%{t}%", f"%{t}%"]
-        sql += " order by created_at desc"
+        sql += " order by m.created_at desc"
         with self._cursor() as cur:
             cur.execute(sql, params)
             return [_norm(r) for r in cur.fetchall()]
@@ -140,8 +145,39 @@ class PostgresRepository(Repository):
     def list_memory(
         self, workspace_id: str, channel_id: str | None = None
     ) -> list[Record]:
-        sql = "select * from memory_items where workspace_id = %s"
+        sql = """
+            select m.*, d.reason 
+            from memory_items m 
+            left join decisions d on m.id = d.id 
+            where m.workspace_id = %s
+        """
         params: list[Any] = [workspace_id]
+        if channel_id is not None:
+            sql += " and m.channel_id = %s"
+            params.append(channel_id)
+        sql += " order by m.created_at desc"
+        with self._cursor() as cur:
+            cur.execute(sql, params)
+            return [_norm(r) for r in cur.fetchall()]
+
+    def list_decisions(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        sql = "select * from decisions where workspace_id = %s"
+        params = [workspace_id]
+        if channel_id is not None:
+            sql += " and channel_id = %s"
+            params.append(channel_id)
+        sql += " order by created_at asc"
+        with self._cursor() as cur:
+            cur.execute(sql, params)
+            return [_norm(r) for r in cur.fetchall()]
+
+    def list_tasks(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        sql = "select * from tasks where workspace_id = %s"
+        params = [workspace_id]
         if channel_id is not None:
             sql += " and channel_id = %s"
             params.append(channel_id)
@@ -149,6 +185,228 @@ class PostgresRepository(Repository):
         with self._cursor() as cur:
             cur.execute(sql, params)
             return [_norm(r) for r in cur.fetchall()]
+
+    def list_blockers(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        sql = "select * from blockers where workspace_id = %s"
+        params = [workspace_id]
+        if channel_id is not None:
+            sql += " and channel_id = %s"
+            params.append(channel_id)
+        sql += " order by created_at desc"
+        with self._cursor() as cur:
+            cur.execute(sql, params)
+            return [_norm(r) for r in cur.fetchall()]
+
+    # --- tasks & blockers ---
+
+    def save_task(self, task: Record) -> Record:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                insert into tasks
+                    (workspace_id, channel_id, title, owner_user_id, status, due_date, evidence_message_ts)
+                values (%(workspace_id)s, %(channel_id)s, %(title)s, %(owner_user_id)s,
+                        coalesce(%(status)s,'open')::task_status, %(due_date)s, %(evidence_message_ts)s)
+                returning *
+                """,
+                {
+                    "workspace_id": task.get("workspace_id"),
+                    "channel_id": task.get("channel_id"),
+                    "title": task.get("title", ""),
+                    "owner_user_id": task.get("owner_user_id"),
+                    "status": task.get("status"),
+                    "due_date": task.get("due_date"),
+                    "evidence_message_ts": task.get("evidence_message_ts"),
+                },
+            )
+            row = cur.fetchone()
+            # Mirror to memory_items
+            cur.execute(
+                """
+                insert into memory_items
+                    (id, workspace_id, channel_id, type, title, summary, status)
+                values (%(id)s, %(workspace_id)s, %(channel_id)s, 'task',
+                        %(title)s, %(summary)s, %(status)s)
+                on conflict (id) do update set
+                    title = excluded.title, summary = excluded.summary, status = excluded.status, updated_at = now()
+                """,
+                {
+                    "id": row["id"],
+                    "workspace_id": row["workspace_id"],
+                    "channel_id": row["channel_id"],
+                    "title": row["title"],
+                    "summary": f"Owner: {row['owner_user_id'] or 'unassigned'}, Due: {row['due_date'] or 'none'}",
+                    "status": row["status"],
+                },
+            )
+        return {"id": str(row["id"]), "status": row["status"], **_strip_ids(row)}
+
+    def update_task_status(self, task_id: str, status: str) -> Record | None:
+        with self._cursor() as cur:
+            cur.execute(
+                "update tasks set status = %s::task_status, updated_at = now() where id = %s returning *",
+                (status, task_id),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "update memory_items set status = %s, updated_at = now() where id = %s",
+                    (status, task_id),
+                )
+        return _norm(row) if row else None
+
+    def save_blocker(self, blocker: Record) -> Record:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                insert into blockers
+                    (workspace_id, channel_id, title, description, status, evidence_message_ts)
+                values (%(workspace_id)s, %(channel_id)s, %(title)s, %(description)s,
+                        coalesce(%(status)s,'open')::blocker_status, %(evidence_message_ts)s)
+                returning *
+                """,
+                {
+                    "workspace_id": blocker.get("workspace_id"),
+                    "channel_id": blocker.get("channel_id"),
+                    "title": blocker.get("title", ""),
+                    "description": blocker.get("description"),
+                    "status": blocker.get("status"),
+                    "evidence_message_ts": blocker.get("evidence_message_ts"),
+                },
+            )
+            row = cur.fetchone()
+            # Mirror to memory_items
+            cur.execute(
+                """
+                insert into memory_items
+                    (id, workspace_id, channel_id, type, title, summary, status)
+                values (%(id)s, %(workspace_id)s, %(channel_id)s, 'blocker',
+                        %(title)s, %(summary)s, %(status)s)
+                on conflict (id) do update set
+                    title = excluded.title, summary = excluded.summary, status = excluded.status, updated_at = now()
+                """,
+                {
+                    "id": row["id"],
+                    "workspace_id": row["workspace_id"],
+                    "channel_id": row["channel_id"],
+                    "title": row["title"],
+                    "summary": row["description"] or "",
+                    "status": row["status"],
+                },
+            )
+        return {"id": str(row["id"]), "status": row["status"], **_strip_ids(row)}
+
+    def update_blocker_status(self, blocker_id: str, status: str) -> Record | None:
+        with self._cursor() as cur:
+            cur.execute(
+                "update blockers set status = %s::blocker_status, updated_at = now() where id = %s returning *",
+                (status, blocker_id),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "update memory_items set status = %s, updated_at = now() where id = %s",
+                    (status, blocker_id),
+                )
+        return _norm(row) if row else None
+
+    # --- reminders ---
+    def save_reminder(self, reminder: Record) -> Record:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                insert into reminders
+                    (workspace_id, task_id, owner_slack_id, task_title, deadline, remind_at, status)
+                values (%(workspace_id)s, %(task_id)s, %(owner_slack_id)s, %(task_title)s,
+                        %(deadline)s, %(remind_at)s, coalesce(%(status)s,'scheduled'))
+                returning *
+                """,
+                {
+                    "workspace_id": reminder.get("workspace_id"),
+                    "task_id": reminder.get("task_id"),
+                    "owner_slack_id": reminder.get("owner_slack_id"),
+                    "task_title": reminder.get("task_title", ""),
+                    "deadline": reminder.get("deadline"),
+                    "remind_at": reminder.get("remind_at"),
+                    "status": reminder.get("status"),
+                },
+            )
+            row = cur.fetchone()
+        return _norm(row)
+
+    def get_pending_reminders(self) -> list[Record]:
+        with self._cursor() as cur:
+            cur.execute(
+                "select * from reminders where status = 'scheduled' and remind_at <= now()"
+            )
+            return [_norm(r) for r in cur.fetchall()]
+
+    def update_reminder_status(self, reminder_id: str, status: str) -> Record | None:
+        with self._cursor() as cur:
+            cur.execute(
+                "update reminders set status = %s where id = %s returning *",
+                (status, reminder_id),
+            )
+            row = cur.fetchone()
+        return _norm(row) if row else None
+
+    # --- cleanup actions ---
+    def execute_cleanup_action(
+        self, action: str, item_id: str, target_id: str | None = None
+    ) -> Record | None:
+        with self._cursor() as cur:
+            # First figure out type of item from memory_items
+            cur.execute("select type from memory_items where id = %s", (item_id,))
+            mem_row = cur.fetchone()
+            if not mem_row:
+                return None
+            itype = mem_row["type"]
+
+            if action == "delete":
+                if itype == "decision":
+                    cur.execute("delete from decisions where id = %s", (item_id,))
+                elif itype == "task":
+                    cur.execute("delete from tasks where id = %s", (item_id,))
+                elif itype == "blocker":
+                    cur.execute("delete from blockers where id = %s", (item_id,))
+                cur.execute("delete from memory_items where id = %s", (item_id,))
+                return {"id": item_id, "action": "deleted"}
+
+            elif action == "archive":
+                if itype == "decision":
+                    cur.execute("update decisions set status = 'archived'::decision_status where id = %s", (item_id,))
+                elif itype == "task":
+                    cur.execute("update tasks set status = 'archived'::task_status where id = %s", (item_id,))
+                elif itype == "blocker":
+                    cur.execute("update blockers set status = 'archived'::blocker_status where id = %s", (item_id,))
+                cur.execute("update memory_items set status = 'archived' where id = %s", (item_id,))
+                return {"id": item_id, "action": "archived"}
+
+            elif action == "supersede":
+                if itype == "decision":
+                    cur.execute(
+                        "update decisions set status = 'superseded'::decision_status, supersedes_decision_id = %s where id = %s",
+                        (target_id, item_id),
+                    )
+                    cur.execute("update memory_items set status = 'superseded' where id = %s", (item_id,))
+                    return {"id": item_id, "action": "superseded"}
+
+            elif action == "merge":
+                if itype == "task":
+                    cur.execute("delete from tasks where id = %s", (target_id,))
+                    cur.execute("delete from memory_items where id = %s", (target_id,))
+                    return {"id": item_id, "merged_id": target_id, "action": "merged"}
+
+            elif action == "ignore":
+                cur.execute(
+                    "insert into audit_events (workspace_id, event_type, target_id, metadata) values ('global', 'cleanup_ignore', %s, '{\"status\": \"ignored\"}')",
+                    (item_id,),
+                )
+                return {"id": item_id, "action": "ignored"}
+            return None
+
 
     # --- conflicts ---
     def save_conflict(self, conflict: Record) -> Record:
@@ -188,6 +446,20 @@ class PostgresRepository(Repository):
             row = cur.fetchone()
         return _norm(row) if row else None
 
+    def list_conflicts(
+        self, workspace_id: str, channel_id: str | None = None
+    ) -> list[Record]:
+        sql = "select * from conflicts where workspace_id = %s"
+        params = [workspace_id]
+        if channel_id is not None:
+            sql += " and channel_id = %s"
+            params.append(channel_id)
+        sql += " order by created_at desc"
+        with self._cursor() as cur:
+            cur.execute(sql, params)
+            return [_norm(r) for r in cur.fetchall()]
+
+
     # --- evidence ---
     def add_evidence(self, memory_item_id: str, links: list[Record]) -> int:
         if not links:
@@ -214,8 +486,13 @@ class PostgresRepository(Repository):
             cur.execute(
                 "update decisions set evidence_count = evidence_count + %s where id = %s",
                 (len(links), memory_item_id),
-            )
         return len(links)
+
+    def get_evidence(self, memory_item_id: str) -> list[Record]:
+        with self._cursor() as cur:
+            cur.execute("select * from evidence_links where memory_item_id = %s", (memory_item_id,))
+            return [_norm(r) for r in cur.fetchall()]
+
 
 
 def _norm(row: Record | None) -> Record:
